@@ -1,10 +1,20 @@
 <script lang='ts'>
   import pngIcon from '$lib/assets/png-icon.png';
+  import { Post } from '$lib/post';
   import { FileDropzone } from '@skeletonlabs/skeleton';
 
   let files: Filelist;
   let results: {[key: string]: string} = {};
 
+  function send() {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const res = Post(file);
+      res.then((data) => {
+        results[file.name] = data;
+      });
+    }
+  }
 </script>
 
 <section>
@@ -16,6 +26,8 @@
 	  <svelte:fragment slot="message">Upload a file or drag and drop</svelte:fragment>
 	  <svelte:fragment slot="meta">Only PNG files are allowed</svelte:fragment>
   </FileDropzone>
+
+  <button type="button" class="btn variant-filled" on:click={send}>Send</button>
 
   {#if files}
     <table>
@@ -54,7 +66,7 @@
     justify-content: center;
     width: 80vw;
     margin: 0 auto;
-    margin-top: 30vh;
+    margin-top: 20vh;
   }
 
   h1 {
@@ -66,6 +78,11 @@
     width: 30%;
     max-width: 10rem;
     margin: 0 auto;
+  }
+
+  button {
+    width: 10%;
+    margin-top: 2rem;
   }
 
   table {
@@ -85,6 +102,10 @@
   @media (max-width: 768px) {
     section {
       width: 90vw;
+    }
+
+    button {
+      width: 30%;
     }
 
     table {

@@ -1,7 +1,9 @@
 <script lang='ts'>
+  import JSZip from 'jszip';
   import pngIcon from '$lib/assets/png-icon.png';
   import { Post } from '$lib/post';
   import { FileDropzone } from '@skeletonlabs/skeleton';
+  import { saveAs } from 'file-saver';
 
   let files: Filelist;
   let results: {[key: string]: string} = {};
@@ -16,7 +18,22 @@
       console.log(results);
     }
   }
+
+  async function download() {
+    const zip = new JSZip();
+    for (const [filename, url] of Object.entries(results)) {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      zip.file(filename.replace('.png', '.svg'), blob);
+    }
+    const content = await zip.generateAsync({type: "blob"});
+    saveAs(content, "SVGs.zip");
+  }
 </script>
+
+<svelte:head>
+  <title>PNG to SVG</title>
+</svelte:head>
 
 <section>
   <h1>PNG to SVG</h1>
@@ -46,17 +63,25 @@
             </td>
             <td>
               {#if results[file.name]}
-                <a href={results[file.name]} download={file.name}>
-                  <img src={results[file.name]} />
-                </a>
+                <img src={results[file.name]} />
               {:else}
                 <p>Unprocessed</p>
               {/if}
+            </td>
           </tr>
         {/each}
       </tbody>
     </table>
   {/if}
+
+  {#if Object.keys(results).length > 0}
+    <button type="button" class="btn variant-filled download" on:click={download}>Download</button>
+  {/if}
+
+  <div class="footer">
+    <p>©︎ 2023 <a href="https://hirawatasou.com" target="_blank">So Hirawata</a></p>
+  </div>
+
 </section>
 
 <style>
@@ -82,7 +107,7 @@
   }
 
   button {
-    width: 10%;
+    width: 12%;
     margin-top: 2rem;
   }
 
@@ -98,6 +123,20 @@
     border: 1px dashed #ccc;
     padding: 8px 12px;
     text-align: center;
+  }
+
+  .download {
+    margin-bottom: 2rem;
+  }
+
+  .footer {
+    position: absolute;
+    bottom: 10px;
+  }
+
+  .footer p {
+    font-size: 0.9rem;
+    opacity: 0.5;
   }
 
   @media (max-width: 768px) {

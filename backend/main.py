@@ -1,11 +1,12 @@
 import os
+import glob
 import base64
 import uvicorn
 import cairosvg
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
@@ -55,7 +56,7 @@ def png_to_svg(path: str):
     with open(path.replace('png', 'svg'), 'w') as f:
         f.write(svg)
 
-@app.post('/backend/{request_id}')
+@app.post('/backend/upload/{request_id}')
 async def image_processing(request_id: str, data: Dict):
     img = data['data'].split(',')[1]
     name = data['name']
@@ -65,6 +66,15 @@ async def image_processing(request_id: str, data: Dict):
         f.write(base64.b64decode(img))
     png_to_svg(f'static/{request_id}/{name}')
     return JSONResponse({'url': f'http://{host}:{port}/static/{request_id}/{name.replace("png", "svg")}'})
+
+@app.get('/backend/download/{request_id}', response_class=FileResponse)
+async def get_image(request_id: str):
+    if not os.path.exists(f'static/{request_id}'):
+        return JSONResponse({'message': 'Not found'}, status_code=404)
+    svg_path = glob.glob(f'static/{request_id}/*.svg')
+    if len(svg_path) == 0:
+        return JSONResponse({'message': 'Not found'}, status_code=404)
+    return FileResponse(svg_path[0])
 
 if __name__ == '__main__':
     uvicorn.run(app, host='0.0.0.0', port=int(port))

@@ -8,7 +8,7 @@ const generateUUID = () => {
 
 const baseURL = () => {
   const ID = generateUUID();
-  return `http://localhost:3000/backend/${ID}`;
+  return `http://localhost:3000/backend/upload/${ID}`;
 }
 
 const getBase64 = async (data: any) => {

@@ -44,7 +44,13 @@
 	  <svelte:fragment slot="meta">Only PNG files are allowed</svelte:fragment>
   </FileDropzone>
 
-  <button type="button" class="btn variant-filled" on:click={send}>Send</button>
+  <div class="buttons">
+    <button type="button" class="btn variant-filled send" on:click={send}>Send</button>
+    {#if Object.keys(results).length > 0}
+      <div class="divider"></div>
+      <button type="button" class="btn variant-filled download" on:click={download}>Download</button>
+    {/if}
+  </div>
 
   {#if files}
     <table>
@@ -71,10 +77,6 @@
         {/each}
       </tbody>
     </table>
-  {/if}
-
-  {#if Object.keys(results).length > 0}
-    <button type="button" class="btn variant-filled download" on:click={download}>Download</button>
   {/if}
 
   <div class="footer">
@@ -105,9 +107,15 @@
     margin: 0 auto;
   }
 
-  button {
-    width: 12%;
+  .buttons {
+    display: flex;
+    width: 50%;
     margin-top: 2rem;
+  }
+
+  button {
+    width: 20%;
+    margin: 0 auto;
   }
 
   table {
@@ -124,12 +132,8 @@
     text-align: center;
   }
 
-  .download {
-    margin-bottom: 2rem;
-  }
-
   .footer {
-    position: absolute;
+    position: fixed;
     bottom: 3px;
   }
 
@@ -143,8 +147,16 @@
       width: 90vw;
     }
 
+    buttons {
+      width: 100%;
+    }
+
     button {
-      width: 30%;
+      width: 45%;
+    }
+
+    .divider {
+      width: 10%;
     }
 
     table {

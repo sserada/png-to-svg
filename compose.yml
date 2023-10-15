@@ -1,0 +1,38 @@
+version: '3'
+
+services:
+  pts-frontend:
+    container_name: 'pts-frontend'
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    tty: true
+    environment:
+      - VITE_HOST=${IP}
+      - VITE_BACKEND_PORT=${BACKEND_PORT}
+    ports:
+      - '${FRONTEND_PORT}:${FRONTEND_PORT}'
+    volumes:
+      - ./frontend:/home/app
+    depends_on:
+      - pts-backend
+    ulimits:
+      core:
+        hard: 0
+        soft: 0
+    command: sh -c 'npm install && npm run dev ${FRONTEND_PORT}'
+
+  pts-backend:
+    build: ./backend
+    container_name: 'pts-backend'
+    environment:
+      - HOST=${IP}
+      - PORT=${BACKEND_PORT}
+      - FRONTEND_PORT=${FRONTEND_PORT}
+    ports:
+      - '${BACKEND_PORT}:${BACKEND_PORT}'
+    volumes:
+      - ./backend:/usr/src/app
+    command: bash -c 'python main.py'
+    restart: always
+

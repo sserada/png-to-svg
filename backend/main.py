@@ -21,11 +21,12 @@ app = FastAPI(docs_url='/api/docs')
 # Validate environment variables
 host = os.getenv("HOST")
 port = os.getenv("PORT")
+frontend_port = os.getenv("FRONTEND_PORT")
 
 # Origin for CORS
 origins = [
-        'http://localhost:5173',
-        f'http://{host}:{port}',
+        f'http://localhost:{frontend_port}',
+        f'http://{host}:{frontend_port}',
         ]
 
 # Enable CORS

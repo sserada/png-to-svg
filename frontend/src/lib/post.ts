@@ -7,8 +7,10 @@ const generateUUID = () => {
 }
 
 const baseURL = () => {
+  const HOST = import.meta.env.VITE_HOST;
+  const backendPORT = import.meta.env.VITE_BACKEND_PORT;
   const ID = generateUUID();
-  return `http://localhost:3000/backend/upload/${ID}`;
+  return `http://${HOST}:${backendPORT}/backend/upload/${ID}`;
 }
 
 const getBase64 = async (data: any) => {

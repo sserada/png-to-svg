@@ -15,7 +15,6 @@
       res.then((data) => {
         results[files[i].name] = data.url;
       });
-      console.log(results);
     }
   }
 
@@ -131,7 +130,7 @@
 
   .footer {
     position: absolute;
-    bottom: 10px;
+    bottom: 3px;
   }
 
   .footer p {

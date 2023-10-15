@@ -5,14 +5,15 @@
 
   let files: Filelist;
   let results: {[key: string]: string} = {};
+  let tableData: TableSource;
 
   function send() {
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const res = Post(file);
+      const res = Post(files[i]);
       res.then((data) => {
-        results[file.name] = data;
+        results[files[i].name] = data.url;
       });
+      console.log(results);
     }
   }
 </script>

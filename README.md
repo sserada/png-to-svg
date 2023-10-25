@@ -1,5 +1,12 @@
 # PNG to SVG
 
+This tool allows users to convert PNG images to SVG format. Users can upload PNG files through a user-friendly frontend interface and get the converted SVGs as downloadable ZIP files. The frontend is developed using Svelte, a modern component framework, while the backend leverages FastAPI, a fast and efficient web framework for building APIs.
+
+### Features
+- Upload: Users can upload PNG files via drag and drop or file selection.
+- PNG to SVG Conversion: Once the PNG files are uploaded, they are sent to the backend for conversion to SVG format.
+- Download: Users can download all the converted SVG files as a ZIP archive.
+
 ### Startup Procedure
 
 1. Clone the repository by running the following command

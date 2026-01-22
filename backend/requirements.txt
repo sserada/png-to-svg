@@ -28,4 +28,5 @@ tinycss2==1.2.1
 typing==3.7.4.3
 typing_extensions==4.8.0
 uvicorn==0.23.2
+vtracer==0.6.11
 webencodings==0.5.1

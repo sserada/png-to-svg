@@ -3,6 +3,7 @@ import glob
 import base64
 import uvicorn
 import cairosvg
+import vtracer
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -45,17 +46,50 @@ async def startup_event():
     app.mount('/static', StaticFiles(directory='static'), name='static')
 
 def png_to_svg(path: str):
-    png = open(path, 'rb').read()
-    size = Image.open(path).size
-    print(f"size: {size}")
-
-    svg = f"""
-    <svg width="100%" height="100%" version="1.1" xmlns="http://www.w3.org/2000/svg">
-        <image href="data:image/png;base64,{base64.b64encode(png).decode()}" x="0" y="0" height="100%" width="100%"/>
-    </svg>
     """
-    with open(path.replace('png', 'svg'), 'w') as f:
-        f.write(svg)
+    Convert PNG image to SVG using VTracer for true vectorization.
+
+    Args:
+        path: Path to the input PNG file
+
+    The output SVG file will be created in the same directory with .svg extension.
+    """
+    output_path = path.replace('png', 'svg')
+
+    try:
+        # Get image size for logging
+        size = Image.open(path).size
+        print(f"Converting image: {path}, size: {size}")
+
+        # Convert PNG to SVG using VTracer
+        vtracer.convert_image_to_svg_py(
+            path,
+            output_path,
+            colormode='color',        # Support color images
+            hierarchical='stacked',   # Layer structure
+            mode='spline',           # Use smooth spline curves
+            filter_speckle=4,        # Remove small noise (4 pixels)
+            color_precision=6,       # Color precision (6 bits)
+            layer_difference=16,     # Layer separation threshold
+            corner_threshold=60,     # Corner detection sensitivity
+            length_threshold=4.0,    # Minimum path length
+            splice_threshold=45      # Path splicing angle threshold
+        )
+
+        print(f"Successfully converted to: {output_path}")
+
+    except Exception as e:
+        print(f"Error during conversion: {e}")
+        # Fallback to base64 embedding if VTracer fails
+        print("Falling back to base64 embedding method")
+        png = open(path, 'rb').read()
+        svg = f"""
+<svg width="100%" height="100%" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <image href="data:image/png;base64,{base64.b64encode(png).decode()}" x="0" y="0" height="100%" width="100%"/>
+</svg>
+"""
+        with open(output_path, 'w') as f:
+            f.write(svg)
 
 @app.post('/backend/upload/{request_id}')
 async def image_processing(request_id: str, data: Dict):

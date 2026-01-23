@@ -1,16 +1,15 @@
-# Pull Request Template
+## Description
+
+<!-- Briefly describe the changes in this PR -->
 
 ## Related Issue
 
-Closes #(issue number)
-
-## Description
-
-A clear and concise description of what this PR does.
+<!-- Link to the issue this PR addresses (if applicable) -->
+<!-- Fixes #123 -->
 
 ## Type of Change
 
-Please delete options that are not relevant.
+<!-- Mark the relevant option with an "x" -->
 
 - [ ] Bug fix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
@@ -19,13 +18,6 @@ Please delete options that are not relevant.
 - [ ] Refactoring (no functional changes)
 - [ ] Performance improvement
 - [ ] Dependency update
-
-## Changes Made
-
-## List the main changes made in this PR:
-
--
--
 
 ## Screenshots (if applicable)
 

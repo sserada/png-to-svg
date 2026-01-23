@@ -2,7 +2,7 @@ import os
 import glob
 import base64
 import uvicorn
-import cairosvg
+import vtracer
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -10,7 +10,6 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
-from PIL import Image
 
 # Load environment variables
 load_dotenv()
@@ -45,17 +44,33 @@ async def startup_event():
     app.mount('/static', StaticFiles(directory='static'), name='static')
 
 def png_to_svg(path: str):
-    png = open(path, 'rb').read()
-    size = Image.open(path).size
-    print(f"size: {size}")
-
-    svg = f"""
-    <svg width="100%" height="100%" version="1.1" xmlns="http://www.w3.org/2000/svg">
-        <image href="data:image/png;base64,{base64.b64encode(png).decode()}" x="0" y="0" height="100%" width="100%"/>
-    </svg>
     """
-    with open(path.replace('png', 'svg'), 'w') as f:
-        f.write(svg)
+    Convert PNG to SVG using vtracer for true vectorization.
+
+    Args:
+        path: Path to the PNG file to convert
+    """
+    output_path = path.replace('png', 'svg')
+
+    try:
+        vtracer.convert_image_to_svg_py(
+            path,
+            output_path,
+            colormode='color',
+            mode='spline',
+            filter_speckle=4,
+            color_precision=6,
+            layer_difference=16,
+            corner_threshold=60,
+            length_threshold=4.0,
+            max_iterations=10,
+            splice_threshold=45,
+            path_precision=3
+        )
+        print(f"Successfully converted: {path} -> {output_path}")
+    except Exception as e:
+        print(f"Error converting {path}: {str(e)}")
+        raise
 
 @app.post('/backend/upload/{request_id}')
 async def image_processing(request_id: str, data: Dict):

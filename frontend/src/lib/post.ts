@@ -32,12 +32,32 @@ const doPost = async (url: string, data: any) => {
     },
     body: JSON.stringify({ name : name, data : base64 }),
   });
-  return response.json();
+
+  const result = await response.json();
+
+  // Check if the response indicates an error
+  if (!response.ok) {
+    throw {
+      status: response.status,
+      message: response.statusText,
+      detail: result.detail || result
+    };
+  }
+
+  return result;
 }
 
 export const Post = async (data: any) => {
-  const url = baseURL();
-  const response = await doPost(url, data);
-  return response;
+  try {
+    const url = baseURL();
+    const response = await doPost(url, data);
+    return response;
+  } catch (error: any) {
+    // Re-throw with more context
+    throw {
+      message: error.message || 'Network error',
+      detail: error.detail || { error: 'Failed to connect to server' }
+    };
+  }
 }
 

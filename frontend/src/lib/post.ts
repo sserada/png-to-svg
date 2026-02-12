@@ -13,31 +13,48 @@ const baseURL = () => {
   return `http://${HOST}:${backendPORT}/backend/upload/${ID}`;
 }
 
-const getBase64 = async (data: any) => {
+/** Result type for the Post function */
+export type PostResult =
+  | { success: true; url: string }
+  | { success: false; error: string };
+
+const getBase64 = async (data: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(data);
-    reader.onload = () => {resolve(reader.result)};
+    reader.onload = () => {resolve(reader.result as string)};
     reader.onerror = (error) => {reject(error)};
   });
 }
 
-const doPost = async (url: string, data: any) => {
-  const name = data.name;
-  const base64 = await getBase64(data);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ name : name, data : base64 }),
-  });
-  return response.json();
+const doPost = async (url: string, data: File): Promise<PostResult> => {
+  try {
+    const name = data.name;
+    const base64 = await getBase64(data);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: name, data: base64 }),
+    });
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: `Server error: ${response.status} ${response.statusText}`,
+      };
+    }
+
+    const json = await response.json();
+    return { success: true, url: json.url };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return { success: false, error: `Network error: ${message}` };
+  }
 }
 
-export const Post = async (data: any) => {
+export const Post = async (data: File): Promise<PostResult> => {
   const url = baseURL();
-  const response = await doPost(url, data);
-  return response;
+  return doPost(url, data);
 }
-

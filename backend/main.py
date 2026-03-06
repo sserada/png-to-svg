@@ -118,6 +118,29 @@ def _validate_uuid(value: str) -> bool:
         return False
 
 
+def sanitize_filename(filename: str) -> str:
+    """
+    Sanitize a user-provided filename to prevent path traversal attacks.
+
+    Strips directory components and leading dots, then validates
+    the result is non-empty.
+
+    Raises:
+        HTTPException: If the filename is empty or invalid after sanitization
+    """
+    # Strip directory components (e.g., ../../etc/passwd -> passwd)
+    sanitized = Path(filename).name
+    # Strip leading dots to prevent hidden files
+    sanitized = sanitized.lstrip('.')
+    if not sanitized:
+        logger.warning(f"Invalid filename after sanitization: {filename!r}")
+        raise HTTPException(
+            status_code=400,
+            detail={'error': 'Invalid filename.', 'code': 'INVALID_FILENAME'}
+        )
+    return sanitized
+
+
 def validate_file(filename: str, file_size: int) -> None:
     """
     Validate file format and size.
@@ -205,7 +228,7 @@ async def image_processing(request_id: str, data: Dict):
                 detail={'error': ERROR_CODES['MISSING_DATA'], 'code': 'MISSING_DATA'}
             )
 
-        name = data['name']
+        name = sanitize_filename(data['name'])
         img_data = data['data'].split(',')[1]
         decoded_img = base64.b64decode(img_data)
 
@@ -246,9 +269,11 @@ async def image_processing(request_id: str, data: Dict):
 async def get_image(request_id: str):
     if not _validate_uuid(request_id):
         return JSONResponse({'error': 'Invalid request_id: must be a valid UUID format'}, status_code=400)
-    if not os.path.exists(f'static/{request_id}'):
+    sanitized_id = sanitize_filename(request_id)
+    request_dir = f'static/{sanitized_id}'
+    if not os.path.exists(request_dir):
         return JSONResponse({'error': 'Not found'}, status_code=404)
-    svg_path = glob.glob(f'static/{request_id}/*.svg')
+    svg_path = glob.glob(f'{request_dir}/*.svg')
     if len(svg_path) == 0:
         return JSONResponse({'error': 'Not found'}, status_code=404)
     return FileResponse(svg_path[0])

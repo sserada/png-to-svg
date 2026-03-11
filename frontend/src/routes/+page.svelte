@@ -2,7 +2,6 @@
   import JSZip from 'jszip';
   import pngIcon from '$lib/assets/png-icon.png';
   import { Post } from '$lib/post';
-  import { FileDropzone, ProgressRadial } from '@skeletonlabs/skeleton';
   import { saveAs } from 'file-saver';
 
   type ConversionStatus = 'pending' | 'processing' | 'completed' | 'failed';
@@ -13,14 +12,17 @@
     error?: string;
   }
 
-  let files: FileList;
-  let fileStatuses: {[key: string]: FileStatus} = {};
-  let selectedPreset: string = 'balanced';
+  let files: FileList | undefined = $state(undefined);
+  let fileStatuses: {[key: string]: FileStatus} = $state({});
+  let selectedPreset: string = $state('balanced');
+  let dragOver: boolean = $state(false);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+  let completedCount = $derived(Object.values(fileStatuses).filter(s => s.status === 'completed').length);
+  let hasCompleted = $derived(completedCount > 0);
+
   function validateFile(file: File): string | null {
-    // Check file extension
     const validExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'];
     const lowerName = file.name.toLowerCase();
     const hasValidExtension = validExtensions.some(ext => lowerName.endsWith(ext));
@@ -29,7 +31,6 @@
       return 'Supported formats: PNG, JPG/JPEG, WebP, BMP, GIF';
     }
 
-    // Check file size
     if (file.size > MAX_FILE_SIZE) {
       return `File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`;
     }
@@ -39,7 +40,6 @@
 
   async function processFile(file: File) {
     fileStatuses[file.name] = { status: 'processing' };
-    fileStatuses = fileStatuses;
 
     try {
       const data = await Post(file, selectedPreset);
@@ -52,7 +52,7 @@
       } else {
         fileStatuses[file.name] = {
           status: 'failed',
-          error: data.error || 'Conversion failed'
+          error: 'Conversion failed'
         };
       }
     } catch (error: any) {
@@ -61,13 +61,12 @@
         error: error.detail?.error || error.message || 'An unexpected error occurred'
       };
     }
-    fileStatuses = fileStatuses;
   }
 
   async function send() {
+    if (!files) return;
     const validFiles: File[] = [];
 
-    // Validate all files first
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
 
@@ -83,9 +82,7 @@
       fileStatuses[file.name] = { status: 'pending' };
       validFiles.push(file);
     }
-    fileStatuses = fileStatuses;
 
-    // Process all valid files concurrently
     await Promise.all(validFiles.map(file => processFile(file)));
   }
 
@@ -103,8 +100,29 @@
     saveAs(content, "SVGs.zip");
   }
 
-  $: completedCount = Object.values(fileStatuses).filter(s => s.status === 'completed').length;
-  $: hasCompleted = completedCount > 0;
+  function handleFileInput(e: Event) {
+    const input = e.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      files = input.files;
+    }
+  }
+
+  function handleDrop(e: DragEvent) {
+    e.preventDefault();
+    dragOver = false;
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      files = e.dataTransfer.files;
+    }
+  }
+
+  function handleDragOver(e: DragEvent) {
+    e.preventDefault();
+    dragOver = true;
+  }
+
+  function handleDragLeave() {
+    dragOver = false;
+  }
 </script>
 
 <svelte:head>
@@ -113,13 +131,30 @@
 
 <section>
   <h1>Image to SVG</h1>
-  <FileDropzone name="files" bind:files multiple>
-	  <svelte:fragment slot="lead">
-      <img src={pngIcon} class="icon" alt="Image icon" />
-    </svelte:fragment>
-	  <svelte:fragment slot="message">Upload a file or drag and drop</svelte:fragment>
-	  <svelte:fragment slot="meta">PNG, JPG/JPEG, WebP, BMP, GIF files are supported</svelte:fragment>
-  </FileDropzone>
+
+  <div
+    class="dropzone"
+    class:drag-over={dragOver}
+    role="button"
+    tabindex="0"
+    ondrop={handleDrop}
+    ondragover={handleDragOver}
+    ondragleave={handleDragLeave}
+    onkeydown={(e) => { if (e.key === 'Enter') document.getElementById('file-input')?.click(); }}
+    onclick={() => document.getElementById('file-input')?.click()}
+  >
+    <img src={pngIcon} class="icon" alt="Image icon" />
+    <p class="dropzone-message">Upload a file or drag and drop</p>
+    <p class="dropzone-meta">PNG, JPG/JPEG, WebP, BMP, GIF files are supported</p>
+    <input
+      id="file-input"
+      type="file"
+      multiple
+      accept=".png,.jpg,.jpeg,.webp,.bmp,.gif"
+      onchange={handleFileInput}
+      hidden
+    />
+  </div>
 
   <div class="preset-selector">
     <label for="preset">Quality Preset:</label>
@@ -131,12 +166,12 @@
   </div>
 
   <div class="buttons">
-    <button type="button" class="btn variant-filled send" on:click={send} disabled={!files || files.length === 0}>
+    <button type="button" class="btn send" onclick={send} disabled={!files || files.length === 0}>
       Send
     </button>
     {#if hasCompleted}
       <div class="divider"></div>
-      <button type="button" class="btn variant-filled download" on:click={download}>
+      <button type="button" class="btn download" onclick={download}>
         Download ({completedCount})
       </button>
     {/if}
@@ -147,7 +182,7 @@
       <thead>
         <tr>
           <th>Filename</th>
-          <th>PNG Preview</th>
+          <th>Preview</th>
           <th>Status</th>
           <th>SVG Preview</th>
         </tr>
@@ -162,22 +197,22 @@
             <td class="status-cell">
               {#if fileStatuses[file.name]}
                 {#if fileStatuses[file.name].status === 'pending'}
-                  <span class="badge variant-soft-secondary">Pending</span>
+                  <span class="badge badge-pending">Pending</span>
                 {:else if fileStatuses[file.name].status === 'processing'}
                   <div class="processing">
-                    <ProgressRadial width="w-8" stroke={100} meter="stroke-primary-500" />
+                    <div class="spinner"></div>
                     <span>Processing...</span>
                   </div>
                 {:else if fileStatuses[file.name].status === 'completed'}
-                  <span class="badge variant-filled-success">✓ Completed</span>
+                  <span class="badge badge-success">&#x2713; Completed</span>
                 {:else if fileStatuses[file.name].status === 'failed'}
                   <div class="error-status">
-                    <span class="badge variant-filled-error">✗ Failed</span>
+                    <span class="badge badge-error">&#x2717; Failed</span>
                     <p class="error-message">{fileStatuses[file.name].error}</p>
                   </div>
                 {/if}
               {:else}
-                <span class="badge variant-soft">Not started</span>
+                <span class="badge badge-default">Not started</span>
               {/if}
             </td>
             <td>
@@ -198,7 +233,7 @@
   {/if}
 
   <div class="footer">
-    <p>©︎ 2023 <a href="https://hirawatasou.com" target="_blank">So Hirawata</a></p>
+    <p>&copy; 2023 <a href="https://hirawatasou.com" target="_blank">So Hirawata</a></p>
   </div>
 
 </section>
@@ -225,6 +260,36 @@
     margin: 0 auto;
   }
 
+  .dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 50%;
+    padding: 2rem;
+    border: 2px dashed #94a3b8;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+  }
+
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: #3b82f6;
+    background-color: rgba(59, 130, 246, 0.05);
+  }
+
+  .dropzone-message {
+    margin-top: 1rem;
+    font-size: 1rem;
+    font-weight: 500;
+  }
+
+  .dropzone-meta {
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+    color: #9ca3af;
+  }
+
   .preset-selector {
     display: flex;
     align-items: center;
@@ -242,7 +307,7 @@
     border-radius: 6px;
     border: 1px solid #ccc;
     font-size: 0.9rem;
-    background: var(--color-surface-200, #f3f4f6);
+    background: #f3f4f6;
   }
 
   .buttons {
@@ -251,9 +316,38 @@
     margin-top: 1rem;
   }
 
-  button {
-    width: 20%;
+  .btn {
+    padding: 0.5rem 1.5rem;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
     margin: 0 auto;
+    transition: opacity 0.2s;
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn.send {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .btn.send:hover:not(:disabled) {
+    background: #2563eb;
+  }
+
+  .btn.download {
+    background: #10b981;
+    color: white;
+  }
+
+  .btn.download:hover {
+    background: #059669;
   }
 
   table {
@@ -302,6 +396,19 @@
     gap: 0.5rem;
   }
 
+  .spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
   .error-status {
     display: flex;
     flex-direction: column;
@@ -330,6 +437,26 @@
     font-weight: 500;
   }
 
+  .badge-pending {
+    background: #e5e7eb;
+    color: #6b7280;
+  }
+
+  .badge-success {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  .badge-error {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .badge-default {
+    background: #f3f4f6;
+    color: #9ca3af;
+  }
+
   .footer {
     position: fixed;
     bottom: 3px;
@@ -345,20 +472,16 @@
       width: 90vw;
     }
 
-    buttons {
+    .dropzone, .buttons, table {
       width: 100%;
     }
 
-    button {
+    .btn {
       width: 45%;
     }
 
     .divider {
       width: 10%;
-    }
-
-    table {
-      width: 100%;
     }
   }
 </style>

@@ -711,14 +711,34 @@ class TestUpdateProgress:
     def test_update_progress_stores_entry(self):
         request_id = "test-progress-store-1"
         _update_progress(request_id, 'converting', 50)
-        assert progress_store[request_id] == {'stage': 'converting', 'progress': 50}
+        entry = progress_store[request_id]
+        assert entry['stage'] == 'converting'
+        assert entry['progress'] == 50
+        assert '_updated_at' in entry
         progress_store.pop(request_id, None)
 
     def test_update_progress_overwrites(self):
         request_id = "test-progress-store-2"
         _update_progress(request_id, 'decoding', 10)
         _update_progress(request_id, 'saving', 25)
-        assert progress_store[request_id] == {'stage': 'saving', 'progress': 25}
+        entry = progress_store[request_id]
+        assert entry['stage'] == 'saving'
+        assert entry['progress'] == 25
+        progress_store.pop(request_id, None)
+
+    def test_stale_progress_cleanup(self):
+        """Stale entries (old _updated_at) should be identifiable for cleanup."""
+        import time as time_mod
+        request_id = "test-progress-stale"
+        progress_store[request_id] = {
+            'stage': 'converting',
+            'progress': 50,
+            '_updated_at': time_mod.monotonic() - 600,  # 10 minutes ago
+        }
+        from main import PROGRESS_MAX_AGE_SECONDS
+        now = time_mod.monotonic()
+        is_stale = now - progress_store[request_id]['_updated_at'] > PROGRESS_MAX_AGE_SECONDS
+        assert is_stale is True
         progress_store.pop(request_id, None)
 
 

@@ -193,10 +193,71 @@
     }
   }
 
-  function handleDrop(e: DragEvent) {
+  const SUPPORTED_EXTENSIONS = /\.(png|jpg|jpeg|webp|bmp|gif)$/i;
+
+  async function readEntryAsFile(entry: FileSystemFileEntry): Promise<File> {
+    return new Promise((resolve, reject) => {
+      entry.file(resolve, reject);
+    });
+  }
+
+  async function readDirectoryEntries(dirEntry: FileSystemDirectoryEntry): Promise<File[]> {
+    const reader = dirEntry.createReader();
+    const files: File[] = [];
+
+    const readBatch = (): Promise<FileSystemEntry[]> =>
+      new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+
+    let batch: FileSystemEntry[];
+    do {
+      batch = await readBatch();
+      for (const entry of batch) {
+        if (entry.isFile && SUPPORTED_EXTENSIONS.test(entry.name)) {
+          files.push(await readEntryAsFile(entry as FileSystemFileEntry));
+        } else if (entry.isDirectory) {
+          files.push(...await readDirectoryEntries(entry as FileSystemDirectoryEntry));
+        }
+      }
+    } while (batch.length > 0);
+
+    return files;
+  }
+
+  function filesToFileList(fileArray: File[]): FileList {
+    const dt = new DataTransfer();
+    for (const file of fileArray) {
+      dt.items.add(file);
+    }
+    return dt.files;
+  }
+
+  async function handleDrop(e: DragEvent) {
     e.preventDefault();
     dragOver = false;
-    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+
+    if (!e.dataTransfer?.items || e.dataTransfer.items.length === 0) return;
+
+    const items = Array.from(e.dataTransfer.items);
+    const hasEntries = items.some(item => item.webkitGetAsEntry?.()?.isDirectory);
+
+    if (hasEntries) {
+      const extractedFiles: File[] = [];
+      for (const item of items) {
+        const entry = item.webkitGetAsEntry();
+        if (!entry) continue;
+        if (entry.isFile && SUPPORTED_EXTENSIONS.test(entry.name)) {
+          extractedFiles.push(await readEntryAsFile(entry as FileSystemFileEntry));
+        } else if (entry.isDirectory) {
+          extractedFiles.push(...await readDirectoryEntries(entry as FileSystemDirectoryEntry));
+        }
+      }
+      if (extractedFiles.length > 0) {
+        revokePreviewUrls();
+        fileStatuses = {};
+        downloadError = null;
+        files = filesToFileList(extractedFiles);
+      }
+    } else if (e.dataTransfer.files.length > 0) {
       revokePreviewUrls();
       fileStatuses = {};
       downloadError = null;

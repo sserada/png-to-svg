@@ -316,6 +316,7 @@
                     <br />{fileStatuses[key].conversionTimeMs}ms
                   </p>
                 {/if}
+                <a href={fileStatuses[key].url} download={fileStatuses[key].displayName.replace(/\.(png|jpg|jpeg|webp|bmp|gif)$/i, '.svg')} class="file-download-link">Download SVG</a>
               {:else if fileStatuses[key]?.status === 'processing'}
                 <p class="text-muted">Converting...</p>
               {:else if fileStatuses[key]?.status === 'failed'}
@@ -606,6 +607,18 @@
 
   .dismiss-btn:hover {
     color: #991b1b;
+  }
+
+  .file-download-link {
+    display: inline-block;
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: #3b82f6;
+    text-decoration: none;
+  }
+
+  .file-download-link:hover {
+    text-decoration: underline;
   }
 
   .footer {

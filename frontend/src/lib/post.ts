@@ -1,3 +1,10 @@
+/**
+ * API client for image-to-SVG conversion.
+ *
+ * Handles file upload via base64-encoded POST, SSE progress streaming,
+ * and request timeout management.
+ */
+
 interface ApiResponse {
   success: boolean;
   url: string;
@@ -36,6 +43,7 @@ const baseURL = (): { url: string; id: string } => {
   return { url: `${base}/backend/upload/${ID}`, id: ID };
 }
 
+/** Read a File as a base64 data URL string (e.g., "data:image/png;base64,...") */
 const getBase64 = (data: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -60,6 +68,11 @@ export interface CustomParams {
   path_precision?: number;
 }
 
+/**
+ * Send a file to the backend upload endpoint.
+ * Encodes the file as base64, attaches an AbortController for timeout,
+ * and parses error responses into ApiError instances.
+ */
 const doPost = async (url: string, data: File, preset: string = 'balanced', customParams?: CustomParams): Promise<ApiResponse> => {
   const name = data.name;
   const base64 = await getBase64(data);
@@ -104,6 +117,11 @@ const doPost = async (url: string, data: File, preset: string = 'balanced', cust
   return await response.json() as ApiResponse;
 }
 
+/**
+ * Upload a file for conversion with optional SSE progress tracking.
+ * Opens an EventSource to the progress endpoint before sending the POST,
+ * so the client receives real-time stage/progress updates during conversion.
+ */
 export const Post = async (
   data: File,
   preset: string = 'balanced',

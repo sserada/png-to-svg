@@ -49,7 +49,11 @@
   }
 
   function saveHistory(entries: HistoryEntry[]) {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)));
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)));
+    } catch {
+      // QuotaExceededError - silently ignore
+    }
   }
 
   function addToHistory(entry: HistoryEntry) {
@@ -240,6 +244,7 @@
     if (input.files && input.files.length > 0) {
       revokePreviewUrls();
       fileStatuses = {};
+      fileMap = {};
       downloadError = null;
       files = input.files;
     }
@@ -388,8 +393,16 @@
         <input id="cp-corner-threshold" type="range" min="0" max="180" bind:value={customParams.corner_threshold} />
       </div>
       <div class="param-row">
+        <label for="cp-length-threshold">Length Threshold <span class="param-value">{customParams.length_threshold}</span></label>
+        <input id="cp-length-threshold" type="range" min="0" max="20" step="0.5" bind:value={customParams.length_threshold} />
+      </div>
+      <div class="param-row">
         <label for="cp-max-iterations">Max Iterations <span class="param-value">{customParams.max_iterations}</span></label>
         <input id="cp-max-iterations" type="range" min="1" max="50" bind:value={customParams.max_iterations} />
+      </div>
+      <div class="param-row">
+        <label for="cp-splice-threshold">Splice Threshold <span class="param-value">{customParams.splice_threshold}</span></label>
+        <input id="cp-splice-threshold" type="range" min="0" max="180" bind:value={customParams.splice_threshold} />
       </div>
       <div class="param-row">
         <label for="cp-path-precision">Path Precision <span class="param-value">{customParams.path_precision}</span></label>

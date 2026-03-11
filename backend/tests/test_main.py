@@ -8,6 +8,7 @@ from httpx import AsyncClient, ASGITransport
 from main import (
     app,
     validate_file,
+    validate_file_header,
     _validate_uuid,
     sanitize_filename,
     PRESETS,
@@ -127,6 +128,55 @@ class TestValidateFile:
         validate_file("image.png", 10 * 1024 * 1024)
 
 
+class TestValidateFileHeader:
+    """Tests for magic number / file header validation."""
+
+    def test_valid_png_header(self):
+        data = b'\x89PNG\r\n\x1a\n' + b'\x00' * 100
+        validate_file_header("image.png", data)  # Should not raise
+
+    def test_valid_jpeg_header(self):
+        data = b'\xff\xd8\xff\xe0' + b'\x00' * 100
+        validate_file_header("image.jpg", data)
+
+    def test_valid_gif_header(self):
+        data = b'GIF89a' + b'\x00' * 100
+        validate_file_header("image.gif", data)
+
+    def test_valid_bmp_header(self):
+        data = b'BM' + b'\x00' * 100
+        validate_file_header("image.bmp", data)
+
+    def test_valid_webp_header(self):
+        data = b'RIFF\x00\x00\x00\x00WEBP' + b'\x00' * 100
+        validate_file_header("image.webp", data)
+
+    def test_invalid_png_header(self):
+        data = b'\xff\xd8\xff' + b'\x00' * 100  # JPEG header with .png ext
+        with pytest.raises(HTTPException) as exc_info:
+            validate_file_header("image.png", data)
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail['code'] == 'INVALID_FILE_HEADER'
+
+    def test_invalid_jpeg_header(self):
+        data = b'\x89PNG\r\n\x1a\n' + b'\x00' * 100  # PNG header with .jpg ext
+        with pytest.raises(HTTPException) as exc_info:
+            validate_file_header("image.jpg", data)
+        assert exc_info.value.status_code == 400
+
+    def test_text_file_as_png(self):
+        data = b'Hello world this is not an image'
+        with pytest.raises(HTTPException) as exc_info:
+            validate_file_header("fake.png", data)
+        assert exc_info.value.status_code == 400
+
+    def test_riff_but_not_webp(self):
+        data = b'RIFF\x00\x00\x00\x00AVI ' + b'\x00' * 100
+        with pytest.raises(HTTPException) as exc_info:
+            validate_file_header("fake.webp", data)
+        assert exc_info.value.status_code == 400
+
+
 # --- Integration tests for endpoints ---
 
 
@@ -199,7 +249,7 @@ async def test_upload_path_traversal(mock_image_to_svg, mock_getsize):
     # Mock vtracer to avoid actual conversion
     mock_image_to_svg.return_value = "static/550e8400-e29b-41d4-a716-446655440000/passwd.svg"
 
-    img_bytes = b"\x00" * 100
+    img_bytes = b'\x89PNG\r\n\x1a\n' + b"\x00" * 100
     b64 = base64.b64encode(img_bytes).decode()
     data_url = f"data:image/png;base64,{b64}"
 

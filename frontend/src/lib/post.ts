@@ -1,28 +1,32 @@
-const generateUUID = () => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-  });
+interface ApiResponse {
+  success: boolean;
+  url: string;
+  filename: string;
 }
 
-const baseURL = () => {
+interface ApiError {
+  status: number;
+  message: string;
+  detail: { error: string; code?: string } | Record<string, unknown>;
+}
+
+const baseURL = (): string => {
   const HOST = import.meta.env.VITE_HOST;
   const backendPORT = import.meta.env.VITE_BACKEND_PORT;
-  const ID = generateUUID();
+  const ID = crypto.randomUUID();
   return `http://${HOST}:${backendPORT}/backend/upload/${ID}`;
 }
 
-const getBase64 = async (data: any) => {
+const getBase64 = (data: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(data);
-    reader.onload = () => {resolve(reader.result)};
+    reader.onload = () => {resolve(reader.result as string)};
     reader.onerror = (error) => {reject(error)};
   });
 }
 
-const doPost = async (url: string, data: any) => {
+const doPost = async (url: string, data: File): Promise<ApiResponse> => {
   const name = data.name;
   const base64 = await getBase64(data);
   const response = await fetch(url, {
@@ -41,23 +45,23 @@ const doPost = async (url: string, data: any) => {
       status: response.status,
       message: response.statusText,
       detail: result.detail || result
-    };
+    } as ApiError;
   }
 
-  return result;
+  return result as ApiResponse;
 }
 
-export const Post = async (data: any) => {
+export const Post = async (data: File): Promise<ApiResponse> => {
   try {
     const url = baseURL();
     const response = await doPost(url, data);
     return response;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const apiError = error as ApiError;
     // Re-throw with more context
     throw {
-      message: error.message || 'Network error',
-      detail: error.detail || { error: 'Failed to connect to server' }
+      message: apiError.message || 'Network error',
+      detail: apiError.detail || { error: 'Failed to connect to server' }
     };
   }
 }
-

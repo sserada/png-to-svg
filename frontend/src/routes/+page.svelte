@@ -420,7 +420,7 @@
       </div>
       <div class="param-row">
         <label for="cp-length-threshold">Length Threshold <span class="param-value">{customParams.length_threshold}</span></label>
-        <input id="cp-length-threshold" type="range" min="0" max="20" step="0.5" bind:value={customParams.length_threshold} />
+        <input id="cp-length-threshold" type="range" min="0" max="100" step="0.5" bind:value={customParams.length_threshold} />
       </div>
       <div class="param-row">
         <label for="cp-max-iterations">Max Iterations <span class="param-value">{customParams.max_iterations}</span></label>

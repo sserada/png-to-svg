@@ -1,6 +1,6 @@
-# PNG to SVG Converter
+# Image to SVG Converter
 
-A modern web application that converts PNG images to true vector SVG format using VTracer. Built with Svelte for the frontend and FastAPI for the backend, this tool provides real-time conversion progress tracking and comprehensive error handling.
+A modern web application that converts raster images (PNG, JPG/JPEG) to true vector SVG format using VTracer. Built with Svelte for the frontend and FastAPI for the backend, this tool provides real-time conversion progress tracking and comprehensive error handling.
 
 https://github.com/fightingsou/png-to-svg/assets/104222305/a33c68de-1575-42ab-b524-ecc5016f263c
 
@@ -8,9 +8,9 @@ https://github.com/fightingsou/png-to-svg/assets/104222305/a33c68de-1575-42ab-b5
 
 ### Core Functionality
 
-- **True Vector Conversion**: Powered by [VTracer](https://github.com/visioncortex/vtracer), converts raster PNG images into scalable vector graphics (not just base64 embedding)
+- **True Vector Conversion**: Powered by [VTracer](https://github.com/visioncortex/vtracer), converts raster images (PNG, JPG/JPEG) into scalable vector graphics (not just base64 embedding)
 - **Drag & Drop Upload**: User-friendly interface with drag and drop support
-- **Batch Processing**: Convert multiple PNG files simultaneously
+- **Batch Processing**: Convert multiple image files simultaneously
 - **ZIP Download**: Download all converted SVG files as a single ZIP archive
 
 ### User Experience
@@ -22,7 +22,7 @@ https://github.com/fightingsou/png-to-svg/assets/104222305/a33c68de-1575-42ab-b5
 
 ### Technical Details
 
-- **File Format**: PNG only (validated on upload)
+- **File Formats**: PNG and JPG/JPEG (validated on upload)
 - **File Size Limit**: 10MB per file
 - **Conversion Quality**: Configurable parameters for color precision, speckle filtering, and curve smoothing
 - **Output**: True SVG vector paths (editable and infinitely scalable)
@@ -39,8 +39,8 @@ https://github.com/fightingsou/png-to-svg/assets/104222305/a33c68de-1575-42ab-b5
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/sserada/png-to-svg.git
-   cd png-to-svg
+   git clone https://github.com/sserada/image-to-svg.git
+   cd image-to-svg
    ```
 
 2. **Configure environment variables**
@@ -97,7 +97,7 @@ docker-compose down
 
 ## Usage
 
-1. **Upload PNG files**: Drag and drop PNG files or click to select
+1. **Upload image files**: Drag and drop PNG or JPG/JPEG files or click to select
 2. **Click Send**: Start the conversion process
 3. **Monitor Progress**: Watch real-time status for each file
 4. **Download**: Once complete, click Download to get a ZIP of all SVG files
@@ -121,9 +121,9 @@ docker-compose up -d
 
 **File conversion fails:**
 
-- Ensure the file is a valid PNG (not corrupted)
+- Ensure the file is a valid PNG or JPG/JPEG (not corrupted)
 - Check file size is under 10MB
-- Verify the PNG is not too complex (millions of colors)
+- Verify the image is not too complex (millions of colors)
 
 **Port already in use:**
 

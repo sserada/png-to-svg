@@ -20,11 +20,11 @@
 
   function validateFile(file: File): string | null {
     // Check file extension
-    const validExtensions = ['.png', '.PNG'];
+    const validExtensions = ['.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG'];
     const hasValidExtension = validExtensions.some(ext => file.name.endsWith(ext));
 
     if (!hasValidExtension) {
-      return 'Only PNG files are allowed';
+      return 'Only PNG and JPG/JPEG files are allowed';
     }
 
     // Check file size
@@ -94,7 +94,8 @@
       if (status.status === 'completed' && status.url) {
         const response = await fetch(status.url);
         const blob = await response.blob();
-        zip.file(filename.replace('.png', '.svg').replace('.PNG', '.svg'), blob);
+        const svgFilename = filename.replace(/\.(png|jpg|jpeg)$/i, '.svg');
+        zip.file(svgFilename, blob);
       }
     }
     const content = await zip.generateAsync({type: "blob"});
@@ -106,17 +107,17 @@
 </script>
 
 <svelte:head>
-  <title>PNG to SVG</title>
+  <title>Image to SVG</title>
 </svelte:head>
 
 <section>
-  <h1>PNG to SVG</h1>
+  <h1>Image to SVG</h1>
   <FileDropzone name="files" bind:files multiple>
 	  <svelte:fragment slot="lead">
-      <img src={pngIcon} class="icon" alt="PNG icon" />
+      <img src={pngIcon} class="icon" alt="Image icon" />
     </svelte:fragment>
 	  <svelte:fragment slot="message">Upload a file or drag and drop</svelte:fragment>
-	  <svelte:fragment slot="meta">Only PNG files are allowed</svelte:fragment>
+	  <svelte:fragment slot="meta">PNG and JPG/JPEG files are supported</svelte:fragment>
   </FileDropzone>
 
   <div class="buttons">

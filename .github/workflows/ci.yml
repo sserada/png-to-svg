@@ -25,19 +25,13 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Run linter
-        run: |
-          pip install ruff
-          ruff check .
+        run: ruff check .
 
       - name: Security audit
-        run: |
-          pip install pip-audit
-          pip-audit -r requirements.txt
+        run: pip-audit -r requirements.txt
 
       - name: Run tests with coverage
-        run: |
-          pip install pytest-cov
-          python -m pytest tests/ -v --cov=. --cov-report=term-missing
+        run: python -m pytest tests/ -v --cov=. --cov-report=term-missing
 
   frontend-test:
     runs-on: ubuntu-latest

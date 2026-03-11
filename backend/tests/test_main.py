@@ -9,6 +9,7 @@ from main import (
     app,
     validate_file,
     validate_file_header,
+    validate_custom_params,
     _validate_uuid,
     sanitize_filename,
     PRESETS,
@@ -546,6 +547,36 @@ class TestPresets:
     def test_fast_less_precise(self):
         assert PRESETS['fast']['color_precision'] < PRESETS['balanced']['color_precision']
         assert PRESETS['fast']['max_iterations'] < PRESETS['balanced']['max_iterations']
+
+
+class TestValidateCustomParams:
+    def test_valid_custom_params(self):
+        params = validate_custom_params({'filter_speckle': 10, 'color_precision': 6})
+        assert params['filter_speckle'] == 10
+        assert params['color_precision'] == 6
+        # Should have defaults for unspecified params
+        assert params['colormode'] == 'color'
+
+    def test_invalid_enum_value(self):
+        with pytest.raises(HTTPException) as exc_info:
+            validate_custom_params({'colormode': 'invalid'})
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail['code'] == 'INVALID_PARAM'
+
+    def test_out_of_range_int(self):
+        with pytest.raises(HTTPException) as exc_info:
+            validate_custom_params({'filter_speckle': 999})
+        assert exc_info.value.status_code == 400
+
+    def test_invalid_int_type(self):
+        with pytest.raises(HTTPException) as exc_info:
+            validate_custom_params({'filter_speckle': 'abc'})
+        assert exc_info.value.status_code == 400
+
+    def test_unknown_keys_ignored(self):
+        params = validate_custom_params({'unknown_key': 'value', 'filter_speckle': 5})
+        assert 'unknown_key' not in params
+        assert params['filter_speckle'] == 5
 
 
 @pytest.mark.anyio

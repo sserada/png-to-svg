@@ -26,7 +26,7 @@ const getBase64 = (data: File): Promise<string> => {
   });
 }
 
-const doPost = async (url: string, data: File): Promise<ApiResponse> => {
+const doPost = async (url: string, data: File, preset: string = 'balanced'): Promise<ApiResponse> => {
   const name = data.name;
   const base64 = await getBase64(data);
   const response = await fetch(url, {
@@ -34,7 +34,7 @@ const doPost = async (url: string, data: File): Promise<ApiResponse> => {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ name : name, data : base64 }),
+    body: JSON.stringify({ name : name, data : base64, preset }),
   });
 
   const result = await response.json();
@@ -51,10 +51,10 @@ const doPost = async (url: string, data: File): Promise<ApiResponse> => {
   return result as ApiResponse;
 }
 
-export const Post = async (data: File): Promise<ApiResponse> => {
+export const Post = async (data: File, preset: string = 'balanced'): Promise<ApiResponse> => {
   try {
     const url = baseURL();
-    const response = await doPost(url, data);
+    const response = await doPost(url, data, preset);
     return response;
   } catch (error: unknown) {
     const apiError = error as ApiError;

@@ -162,12 +162,53 @@ def validate_file(filename: str, file_size: int) -> None:
             detail={'error': ERROR_CODES['FILE_TOO_LARGE'], 'code': 'FILE_TOO_LARGE'}
         )
 
-def image_to_svg(path: str) -> str:
+PRESETS = {
+    'high_quality': {
+        'colormode': 'color',
+        'mode': 'spline',
+        'filter_speckle': 2,
+        'color_precision': 8,
+        'layer_difference': 8,
+        'corner_threshold': 60,
+        'length_threshold': 4.0,
+        'max_iterations': 20,
+        'splice_threshold': 45,
+        'path_precision': 5,
+    },
+    'balanced': {
+        'colormode': 'color',
+        'mode': 'spline',
+        'filter_speckle': 4,
+        'color_precision': 6,
+        'layer_difference': 16,
+        'corner_threshold': 60,
+        'length_threshold': 4.0,
+        'max_iterations': 10,
+        'splice_threshold': 45,
+        'path_precision': 3,
+    },
+    'fast': {
+        'colormode': 'color',
+        'mode': 'spline',
+        'filter_speckle': 8,
+        'color_precision': 4,
+        'layer_difference': 32,
+        'corner_threshold': 60,
+        'length_threshold': 4.0,
+        'max_iterations': 5,
+        'splice_threshold': 45,
+        'path_precision': 2,
+    },
+}
+
+
+def image_to_svg(path: str, preset: str = 'balanced') -> str:
     """
-    Convert image (PNG/JPG) to SVG using vtracer for true vectorization.
+    Convert image to SVG using vtracer for true vectorization.
 
     Args:
         path: Path to the image file to convert
+        preset: Conversion preset ('high_quality', 'balanced', 'fast')
 
     Returns:
         Path to the converted SVG file
@@ -176,22 +217,14 @@ def image_to_svg(path: str) -> str:
         HTTPException: If conversion fails
     """
     output_path = str(Path(path).with_suffix('.svg'))
+    params = PRESETS.get(preset, PRESETS['balanced'])
 
     try:
-        logger.info(f"Starting conversion: {path}")
+        logger.info(f"Starting conversion: {path} (preset: {preset})")
         vtracer.convert_image_to_svg_py(
             path,
             output_path,
-            colormode='color',
-            mode='spline',
-            filter_speckle=4,
-            color_precision=6,
-            layer_difference=16,
-            corner_threshold=60,
-            length_threshold=4.0,
-            max_iterations=10,
-            splice_threshold=45,
-            path_precision=3
+            **params
         )
         logger.info(f"Successfully converted: {path} -> {output_path}")
         return output_path
@@ -209,6 +242,15 @@ def image_to_svg(path: str) -> str:
 async def health_check() -> JSONResponse:
     """Health check endpoint."""
     return JSONResponse({'status': 'healthy'})
+
+
+@app.get('/backend/presets')
+async def get_presets() -> JSONResponse:
+    """Return available conversion presets."""
+    return JSONResponse({
+        'presets': list(PRESETS.keys()),
+        'default': 'balanced',
+    })
 
 
 @app.post('/backend/upload/{request_id}')
@@ -246,7 +288,10 @@ async def image_processing(request_id: str, data: Dict):
         logger.info(f"Saved uploaded file: {file_path}")
 
         # Convert to SVG
-        output_path = image_to_svg(file_path)
+        preset = data.get('preset', 'balanced')
+        if preset not in PRESETS:
+            preset = 'balanced'
+        output_path = image_to_svg(file_path, preset=preset)
 
         svg_filename = Path(output_path).name
         response_url = f'http://{host}:{port}/static/{request_id}/{svg_filename}'

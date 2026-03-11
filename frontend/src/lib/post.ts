@@ -47,11 +47,29 @@ const getBase64 = (data: File): Promise<string> => {
 
 export const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-const doPost = async (url: string, data: File, preset: string = 'balanced'): Promise<ApiResponse> => {
+export interface CustomParams {
+  colormode?: string;
+  mode?: string;
+  filter_speckle?: number;
+  color_precision?: number;
+  layer_difference?: number;
+  corner_threshold?: number;
+  length_threshold?: number;
+  max_iterations?: number;
+  splice_threshold?: number;
+  path_precision?: number;
+}
+
+const doPost = async (url: string, data: File, preset: string = 'balanced', customParams?: CustomParams): Promise<ApiResponse> => {
   const name = data.name;
   const base64 = await getBase64(data);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+  const body: Record<string, unknown> = { name, data: base64, preset };
+  if (customParams) {
+    body.custom_params = customParams;
+  }
 
   let response: Response;
   try {
@@ -60,7 +78,7 @@ const doPost = async (url: string, data: File, preset: string = 'balanced'): Pro
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name : name, data : base64, preset }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
   } catch (error) {
@@ -89,7 +107,8 @@ const doPost = async (url: string, data: File, preset: string = 'balanced'): Pro
 export const Post = async (
   data: File,
   preset: string = 'balanced',
-  onProgress?: (event: ProgressEvent) => void
+  onProgress?: (event: ProgressEvent) => void,
+  customParams?: CustomParams,
 ): Promise<ApiResponse> => {
   const { url, id } = baseURL();
   let eventSource: EventSource | null = null;
@@ -113,7 +132,7 @@ export const Post = async (
       };
     }
 
-    const response = await doPost(url, data, preset);
+    const response = await doPost(url, data, preset, customParams);
     return response;
   } catch (error: unknown) {
     if (error instanceof ApiError) {

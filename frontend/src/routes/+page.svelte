@@ -1,7 +1,7 @@
 <script lang='ts'>
   import JSZip from 'jszip';
   import pngIcon from '$lib/assets/png-icon.png';
-  import { Post, ApiError, type ProgressEvent } from '$lib/post';
+  import { Post, ApiError, type ProgressEvent, type CustomParams } from '$lib/post';
   import { validateFile } from '$lib/validate';
   import { saveAs } from 'file-saver';
 
@@ -30,6 +30,19 @@
   let files: FileList | undefined = $state(undefined);
   let fileStatuses: {[key: string]: FileStatus} = $state({});
   let selectedPreset: string = $state('balanced');
+  let customParams: CustomParams = $state({
+    colormode: 'color',
+    mode: 'spline',
+    filter_speckle: 4,
+    color_precision: 6,
+    layer_difference: 16,
+    corner_threshold: 60,
+    length_threshold: 4.0,
+    max_iterations: 10,
+    splice_threshold: 45,
+    path_precision: 3,
+  });
+  let isCustom = $derived(selectedPreset === 'custom');
   let dragOver: boolean = $state(false);
   let previewUrls: string[] = $state([]);
 
@@ -72,7 +85,7 @@
             progress: evt.progress
           };
         }
-      });
+      }, isCustom ? customParams : undefined);
 
       if (data.success) {
         fileStatuses[key] = {
@@ -239,8 +252,53 @@
       <option value="high_quality" title="Best detail, larger SVG, slower conversion">High Quality</option>
       <option value="balanced" title="Good balance of detail, size, and speed">Balanced</option>
       <option value="fast" title="Fastest conversion, smaller SVG, less detail">Fast</option>
+      <option value="custom" title="Fine-tune conversion parameters">Custom</option>
     </select>
   </div>
+
+  {#if isCustom}
+    <div class="custom-params">
+      <div class="param-row">
+        <label for="cp-filter-speckle">Filter Speckle <span class="param-value">{customParams.filter_speckle}</span></label>
+        <input id="cp-filter-speckle" type="range" min="1" max="128" bind:value={customParams.filter_speckle} />
+      </div>
+      <div class="param-row">
+        <label for="cp-color-precision">Color Precision <span class="param-value">{customParams.color_precision}</span></label>
+        <input id="cp-color-precision" type="range" min="1" max="8" bind:value={customParams.color_precision} />
+      </div>
+      <div class="param-row">
+        <label for="cp-layer-difference">Layer Difference <span class="param-value">{customParams.layer_difference}</span></label>
+        <input id="cp-layer-difference" type="range" min="1" max="256" bind:value={customParams.layer_difference} />
+      </div>
+      <div class="param-row">
+        <label for="cp-corner-threshold">Corner Threshold <span class="param-value">{customParams.corner_threshold}</span></label>
+        <input id="cp-corner-threshold" type="range" min="0" max="180" bind:value={customParams.corner_threshold} />
+      </div>
+      <div class="param-row">
+        <label for="cp-max-iterations">Max Iterations <span class="param-value">{customParams.max_iterations}</span></label>
+        <input id="cp-max-iterations" type="range" min="1" max="50" bind:value={customParams.max_iterations} />
+      </div>
+      <div class="param-row">
+        <label for="cp-path-precision">Path Precision <span class="param-value">{customParams.path_precision}</span></label>
+        <input id="cp-path-precision" type="range" min="1" max="10" bind:value={customParams.path_precision} />
+      </div>
+      <div class="param-row">
+        <label for="cp-mode">Mode</label>
+        <select id="cp-mode" bind:value={customParams.mode} class="select-small">
+          <option value="spline">Spline</option>
+          <option value="polygon">Polygon</option>
+          <option value="none">None</option>
+        </select>
+      </div>
+      <div class="param-row">
+        <label for="cp-colormode">Color Mode</label>
+        <select id="cp-colormode" bind:value={customParams.colormode} class="select-small">
+          <option value="color">Color</option>
+          <option value="binary">Binary</option>
+        </select>
+      </div>
+    </div>
+  {/if}
 
   <div class="buttons">
     <button type="button" class="btn send" onclick={send} disabled={!files || files.length === 0 || isProcessing}>
@@ -430,6 +488,47 @@
     border: 1px solid #ccc;
     font-size: 0.9rem;
     background: #f3f4f6;
+  }
+
+  .custom-params {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 1.5rem;
+    width: 50%;
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f9fafb;
+  }
+
+  .param-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .param-row label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #374151;
+  }
+
+  .param-value {
+    font-weight: 600;
+    color: #3b82f6;
+  }
+
+  .param-row input[type="range"] {
+    width: 100%;
+  }
+
+  .select-small {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    font-size: 0.8rem;
+    background: white;
   }
 
   .buttons {

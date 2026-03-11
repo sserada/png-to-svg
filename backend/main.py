@@ -291,12 +291,84 @@ PRESETS = {
 }
 
 
-def image_to_svg(path: str, preset: str = 'balanced') -> str:
+# Allowed custom parameter ranges for validation
+CUSTOM_PARAM_RANGES = {
+    'colormode': {'type': 'enum', 'values': ['color', 'binary']},
+    'mode': {'type': 'enum', 'values': ['spline', 'polygon', 'none']},
+    'filter_speckle': {'type': 'int', 'min': 1, 'max': 128},
+    'color_precision': {'type': 'int', 'min': 1, 'max': 8},
+    'layer_difference': {'type': 'int', 'min': 1, 'max': 256},
+    'corner_threshold': {'type': 'int', 'min': 0, 'max': 180},
+    'length_threshold': {'type': 'float', 'min': 0.0, 'max': 100.0},
+    'max_iterations': {'type': 'int', 'min': 1, 'max': 50},
+    'splice_threshold': {'type': 'int', 'min': 0, 'max': 180},
+    'path_precision': {'type': 'int', 'min': 1, 'max': 10},
+}
+
+
+def validate_custom_params(params: dict) -> dict:
+    """Validate and sanitize custom conversion parameters.
+
+    Returns validated params merged with balanced preset defaults.
+
+    Raises:
+        HTTPException: If any parameter is invalid
+    """
+    base = dict(PRESETS['balanced'])
+    for key, value in params.items():
+        if key not in CUSTOM_PARAM_RANGES:
+            continue  # Ignore unknown keys
+        spec = CUSTOM_PARAM_RANGES[key]
+        if spec['type'] == 'enum':
+            if value not in spec['values']:
+                raise HTTPException(
+                    status_code=400,
+                    detail={'error': f"Invalid value for {key}: {value}. "
+                            f"Allowed: {spec['values']}", 'code': 'INVALID_PARAM'}
+                )
+            base[key] = value
+        elif spec['type'] == 'int':
+            try:
+                val = int(value)
+            except (ValueError, TypeError):
+                raise HTTPException(
+                    status_code=400,
+                    detail={'error': f"Invalid value for {key}: must be integer",
+                            'code': 'INVALID_PARAM'}
+                )
+            if val < spec['min'] or val > spec['max']:
+                raise HTTPException(
+                    status_code=400,
+                    detail={'error': f"Value for {key} must be between "
+                            f"{spec['min']} and {spec['max']}", 'code': 'INVALID_PARAM'}
+                )
+            base[key] = val
+        elif spec['type'] == 'float':
+            try:
+                val = float(value)
+            except (ValueError, TypeError):
+                raise HTTPException(
+                    status_code=400,
+                    detail={'error': f"Invalid value for {key}: must be number",
+                            'code': 'INVALID_PARAM'}
+                )
+            if val < spec['min'] or val > spec['max']:
+                raise HTTPException(
+                    status_code=400,
+                    detail={'error': f"Value for {key} must be between "
+                            f"{spec['min']} and {spec['max']}", 'code': 'INVALID_PARAM'}
+                )
+            base[key] = val
+    return base
+
+
+def image_to_svg(path: str, params: dict | None = None, preset: str = 'balanced') -> str:
     """
     Convert image to SVG using vtracer for true vectorization.
 
     Args:
         path: Path to the image file to convert
+        params: Custom conversion parameters (overrides preset)
         preset: Conversion preset ('high_quality', 'balanced', 'fast')
 
     Returns:
@@ -306,7 +378,8 @@ def image_to_svg(path: str, preset: str = 'balanced') -> str:
         HTTPException: If conversion fails
     """
     output_path = str(Path(path).with_suffix('.svg'))
-    params = PRESETS.get(preset, PRESETS['balanced'])
+    if params is None:
+        params = PRESETS.get(preset, PRESETS['balanced'])
 
     try:
         logger.info(f"Starting conversion: {path} (preset: {preset})")
@@ -335,10 +408,12 @@ async def health_check() -> JSONResponse:
 
 @app.get('/backend/presets')
 async def get_presets() -> JSONResponse:
-    """Return available conversion presets."""
+    """Return available conversion presets and custom parameter definitions."""
     return JSONResponse({
         'presets': list(PRESETS.keys()),
         'default': 'balanced',
+        'preset_values': PRESETS,
+        'custom_params': CUSTOM_PARAM_RANGES,
     })
 
 
@@ -453,13 +528,18 @@ async def image_processing(request: Request, request_id: str, data: Dict):
 
         # Convert to SVG (run in thread pool to avoid blocking event loop)
         preset = data.get('preset', 'balanced')
-        if preset not in PRESETS:
-            preset = 'balanced'
+        custom_params = data.get('custom_params')
+        if custom_params and isinstance(custom_params, dict):
+            conversion_params = validate_custom_params(custom_params)
+        else:
+            if preset not in PRESETS:
+                preset = 'balanced'
+            conversion_params = None
 
         convert_start = time.monotonic()
         try:
             output_path = await asyncio.wait_for(
-                asyncio.to_thread(image_to_svg, file_path, preset),
+                asyncio.to_thread(image_to_svg, file_path, conversion_params, preset),
                 timeout=CONVERSION_TIMEOUT_SECONDS
             )
         except asyncio.TimeoutError:

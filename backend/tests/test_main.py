@@ -10,6 +10,8 @@ from main import (
     _validate_uuid,
     sanitize_filename,
     PRESETS,
+    progress_store,
+    _update_progress,
 )
 
 
@@ -535,3 +537,66 @@ async def test_download_not_found():
             "/backend/download/550e8400-e29b-41d4-a716-446655440001"
         )
     assert response.status_code == 404
+
+
+# --- SSE Progress endpoint tests ---
+
+
+@pytest.mark.anyio
+async def test_progress_invalid_uuid():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/backend/progress/not-a-uuid")
+    assert response.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_progress_completed_stream():
+    """Test that SSE stream returns progress and terminates on completion."""
+    request_id = "550e8400-e29b-41d4-a716-446655440099"
+    # Pre-populate progress as completed
+    progress_store[request_id] = {'stage': 'completed', 'progress': 100}
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(f"/backend/progress/{request_id}")
+
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers["content-type"]
+    # Should contain the completed event
+    assert '"completed"' in response.text
+    assert '"progress": 100' in response.text
+
+    # Cleanup
+    progress_store.pop(request_id, None)
+
+
+@pytest.mark.anyio
+async def test_progress_failed_stream():
+    """Test that SSE stream terminates on failure."""
+    request_id = "550e8400-e29b-41d4-a716-446655440098"
+    progress_store[request_id] = {'stage': 'failed', 'progress': 0}
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(f"/backend/progress/{request_id}")
+
+    assert response.status_code == 200
+    assert '"failed"' in response.text
+
+    progress_store.pop(request_id, None)
+
+
+class TestUpdateProgress:
+    def test_update_progress_stores_entry(self):
+        request_id = "test-progress-store-1"
+        _update_progress(request_id, 'converting', 50)
+        assert progress_store[request_id] == {'stage': 'converting', 'progress': 50}
+        progress_store.pop(request_id, None)
+
+    def test_update_progress_overwrites(self):
+        request_id = "test-progress-store-2"
+        _update_progress(request_id, 'decoding', 10)
+        _update_progress(request_id, 'saving', 25)
+        assert progress_store[request_id] == {'stage': 'saving', 'progress': 25}
+        progress_store.pop(request_id, None)

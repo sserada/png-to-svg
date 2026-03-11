@@ -14,6 +14,15 @@
     stage?: string;
     progress?: number;
     displayName: string;
+    originalSize?: number;
+    svgSize?: number;
+    conversionTimeMs?: number;
+  }
+
+  function formatSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   import { onDestroy } from 'svelte';
@@ -66,7 +75,10 @@
         fileStatuses[key] = {
           status: 'completed',
           url: data.url,
-          displayName: file.name
+          displayName: file.name,
+          originalSize: data.original_size,
+          svgSize: data.svg_size,
+          conversionTimeMs: data.conversion_time_ms,
         };
       } else {
         fileStatuses[key] = {
@@ -283,6 +295,12 @@
             <td>
               {#if fileStatuses[key]?.status === 'completed' && fileStatuses[key].url}
                 <img src={fileStatuses[key].url} alt="SVG output" class="preview-img" />
+                {#if fileStatuses[key].originalSize != null}
+                  <p class="metrics">
+                    {formatSize(fileStatuses[key].originalSize ?? 0)} → {formatSize(fileStatuses[key].svgSize ?? 0)}
+                    <br />{fileStatuses[key].conversionTimeMs}ms
+                  </p>
+                {/if}
               {:else if fileStatuses[key]?.status === 'processing'}
                 <p class="text-muted">Converting...</p>
               {:else if fileStatuses[key]?.status === 'failed'}
@@ -512,6 +530,13 @@
   .text-muted {
     color: #9ca3af;
     font-style: italic;
+  }
+
+  .metrics {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+    line-height: 1.4;
   }
 
   .badge {

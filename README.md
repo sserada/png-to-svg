@@ -24,6 +24,7 @@ https://github.com/fightingsou/png-to-svg/assets/104222305/a33c68de-1575-42ab-b5
 
 - **File Formats**: PNG, JPG/JPEG, WebP, BMP, GIF (validated on upload)
 - **File Size Limit**: 10MB per file
+- **Quality Presets**: Three conversion presets — High Quality, Balanced, and Fast
 - **Conversion Quality**: Configurable parameters for color precision, speckle filtering, and curve smoothing
 - **Output**: True SVG vector paths (editable and infinitely scalable)
 
@@ -98,9 +99,13 @@ docker compose down
 ## Usage
 
 1. **Upload image files**: Drag and drop image files (PNG, JPG/JPEG, WebP, BMP, GIF) or click to select
-2. **Click Send**: Start the conversion process
-3. **Monitor Progress**: Watch real-time status for each file
-4. **Download**: Once complete, click Download to get a ZIP of all SVG files
+2. **Select a quality preset**:
+   - **High Quality**: Best visual fidelity, slower conversion (high color precision, minimal speckle filtering)
+   - **Balanced** (default): Good trade-off between quality and speed
+   - **Fast**: Quickest conversion, reduced detail (lower color precision, aggressive filtering)
+3. **Click Send**: Start the conversion process
+4. **Monitor Progress**: Watch real-time status for each file
+5. **Download**: Once complete, click Download to get a ZIP of all SVG files
 
 ## Troubleshooting
 
@@ -147,8 +152,25 @@ POST /backend/upload/{request_id}
 ```
 
 - `request_id` (path): UUID v4 format string
-- Body (JSON): `{"name": "image.png", "data": "data:image/png;base64,..."}`
+- Body (JSON): `{"name": "image.png", "data": "data:image/png;base64,...", "preset": "balanced"}`
+- `preset` (optional): One of `high_quality`, `balanced` (default), `fast`
 - Response: `{"success": true, "url": "...", "filename": "image.svg"}`
+
+### List Presets
+
+```
+GET /backend/presets
+```
+
+Returns available conversion presets and their parameters:
+
+```json
+{
+  "high_quality": {"color_precision": 8, "filter_speckle": 2, ...},
+  "balanced": {"color_precision": 6, "filter_speckle": 4, ...},
+  "fast": {"color_precision": 4, "filter_speckle": 8, ...}
+}
+```
 
 ### Download SVG
 
@@ -183,8 +205,13 @@ npm run dev -- --host 0.0.0.0 --port 55030
 ### Running Tests
 
 ```bash
+# Backend
 cd backend
 python -m pytest tests/ -v
+
+# Frontend
+cd frontend
+npm run test
 ```
 
 ## FAQ
@@ -199,14 +226,14 @@ A: Yes, select multiple files in the upload dialog. They are processed sequentia
 A: Files are automatically deleted after 1 hour.
 
 **Q: What conversion parameters does VTracer use?**
-A: Color mode with spline paths, balanced for quality and speed. See `backend/main.py` for exact parameters.
+A: Three presets are available — High Quality, Balanced, and Fast. Each adjusts color precision, speckle filtering, and iteration count. Use the preset selector in the UI or the `preset` parameter in the API. See `backend/main.py` for exact values.
 
 ## Technology Stack
 
 ### Frontend
 
-- **Framework**: Svelte + SvelteKit
-- **Styling**: Tailwind CSS + Skeleton UI
+- **Framework**: Svelte 5 + SvelteKit 2
+- **Styling**: Tailwind CSS
 - **Language**: TypeScript
 
 ### Backend

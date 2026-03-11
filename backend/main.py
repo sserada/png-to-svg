@@ -287,11 +287,11 @@ async def image_processing(request_id: str, data: Dict):
             f.write(decoded_img)
         logger.info(f"Saved uploaded file: {file_path}")
 
-        # Convert to SVG
+        # Convert to SVG (run in thread pool to avoid blocking event loop)
         preset = data.get('preset', 'balanced')
         if preset not in PRESETS:
             preset = 'balanced'
-        output_path = image_to_svg(file_path, preset=preset)
+        output_path = await asyncio.to_thread(image_to_svg, file_path, preset)
 
         svg_filename = Path(output_path).name
         response_url = f'http://{host}:{port}/static/{request_id}/{svg_filename}'

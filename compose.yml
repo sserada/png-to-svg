@@ -1,8 +1,8 @@
 version: '3'
 
 services:
-  pts-frontend:
-    container_name: 'pts-frontend'
+  its-frontend:
+    container_name: 'its-frontend'
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -15,16 +15,16 @@ services:
     volumes:
       - ./frontend:/home/app
     depends_on:
-      - pts-backend
+      - its-backend
     ulimits:
       core:
         hard: 0
         soft: 0
     command: sh -c 'npm install && npm run dev ${FRONTEND_PORT}'
 
-  pts-backend:
+  its-backend:
     build: ./backend
-    container_name: 'pts-backend'
+    container_name: 'its-backend'
     environment:
       - HOST=${IP}
       - PORT=${BACKEND_PORT}

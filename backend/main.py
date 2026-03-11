@@ -22,11 +22,11 @@ logger = logging.getLogger(__name__)
 
 # Configuration constants
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
-ALLOWED_EXTENSIONS = {'.png'}
+ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'}
 ERROR_CODES = {
-    'INVALID_FORMAT': 'File format is not supported. Only PNG files are allowed.',
+    'INVALID_FORMAT': 'File format is not supported. Only PNG and JPG/JPEG files are allowed.',
     'FILE_TOO_LARGE': f'File size exceeds the maximum limit of {MAX_FILE_SIZE / (1024 * 1024):.0f}MB.',
-    'CONVERSION_FAILED': 'Failed to convert PNG to SVG. The image may be corrupted or too complex.',
+    'CONVERSION_FAILED': 'Failed to convert image to SVG. The image may be corrupted or too complex.',
     'MISSING_DATA': 'Invalid request data. Please provide both file name and data.',
 }
 
@@ -91,12 +91,12 @@ def validate_file(filename: str, file_size: int) -> None:
             detail={'error': ERROR_CODES['FILE_TOO_LARGE'], 'code': 'FILE_TOO_LARGE'}
         )
 
-def png_to_svg(path: str) -> str:
+def image_to_svg(path: str) -> str:
     """
-    Convert PNG to SVG using vtracer for true vectorization.
+    Convert image (PNG/JPG) to SVG using vtracer for true vectorization.
 
     Args:
-        path: Path to the PNG file to convert
+        path: Path to the image file to convert
 
     Returns:
         Path to the converted SVG file
@@ -104,7 +104,7 @@ def png_to_svg(path: str) -> str:
     Raises:
         HTTPException: If conversion fails
     """
-    output_path = path.replace('.png', '.svg').replace('.PNG', '.svg')
+    output_path = str(Path(path).with_suffix('.svg'))
 
     try:
         logger.info(f"Starting conversion: {path}")
@@ -177,7 +177,7 @@ async def image_processing(request_id: str, data: Dict):
         logger.info(f"Saved uploaded file: {file_path}")
 
         # Convert to SVG
-        output_path = png_to_svg(file_path)
+        output_path = image_to_svg(file_path)
 
         # Generate response URL
         svg_filename = Path(output_path).name

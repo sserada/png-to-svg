@@ -12,10 +12,13 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from typing import Dict
 
 # Configure logging
@@ -38,6 +41,10 @@ ERROR_CODES = {
     'CONVERSION_FAILED': 'Failed to convert image to SVG. The image may be corrupted or too complex.',
     'MISSING_DATA': 'Invalid request data. Please provide both file name and data.',
 }
+
+# Rate limiting
+UPLOAD_RATE_LIMIT = "10/minute"
+limiter = Limiter(key_func=get_remote_address)
 
 # Progress tracking for SSE
 progress_store: Dict[str, dict] = {}
@@ -107,6 +114,8 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI instance
 app = FastAPI(docs_url='/api/docs', lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Origin for CORS
 origins = [
@@ -308,7 +317,8 @@ async def stream_progress(request_id: str):
 
 
 @app.post('/backend/upload/{request_id}')
-async def image_processing(request_id: str, data: Dict):
+@limiter.limit(UPLOAD_RATE_LIMIT)
+async def image_processing(request: Request, request_id: str, data: Dict):
     """
     Process uploaded PNG file and convert to SVG.
     """

@@ -666,25 +666,30 @@ async def test_download_not_found():
 
 
 @pytest.mark.anyio
-@patch("main.glob.glob", return_value=["static/550e8400-e29b-41d4-a716-446655440000/test.svg"])
-@patch("main.os.path.exists", return_value=True)
-async def test_download_success_headers(mock_exists, mock_glob):
+async def test_download_success_headers(tmp_path):
     """Download endpoint should return proper Content-Type and Content-Disposition."""
-    # Create a temporary SVG file for FileResponse to read
-    import tempfile
-    with tempfile.NamedTemporaryFile(suffix=".svg", delete=False, mode="w") as f:
-        f.write('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
-        tmp_path = f.name
+    request_id = "550e8400-e29b-41d4-a716-446655440000"
+    request_dir = tmp_path / request_id
+    request_dir.mkdir()
+    svg_file = request_dir / "test.svg"
+    svg_file.write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
 
-    mock_glob.return_value = [tmp_path]
+    with patch("main.os.path.exists", return_value=True), \
+         patch("main.glob.glob", return_value=[str(svg_file)]), \
+         patch("main.Path") as mock_path_cls:
+        # Set up Path mock to make is_relative_to work
+        mock_resolved = MagicMock()
+        mock_resolved.is_relative_to.return_value = True
+        mock_resolved.name = "test.svg"
+        mock_resolved.__str__ = lambda self: str(svg_file)
+        mock_path_inst = MagicMock()
+        mock_path_inst.resolve.return_value = mock_resolved
+        mock_path_cls.return_value = mock_path_inst
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get(
-            "/backend/download/550e8400-e29b-41d4-a716-446655440000"
-        )
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get(f"/backend/download/{request_id}")
 
-    os.remove(tmp_path)
     assert response.status_code == 200
     assert "image/svg+xml" in response.headers["content-type"]
     assert "attachment" in response.headers["content-disposition"]

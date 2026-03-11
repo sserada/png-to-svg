@@ -36,6 +36,7 @@ CLEANUP_INTERVAL_SECONDS = 600   # Run cleanup every 10 minutes
 FILE_MAX_AGE_SECONDS = 3600      # Delete files older than 1 hour
 SSE_TIMEOUT_SECONDS = 60              # Max time for SSE progress stream
 PROGRESS_CLEANUP_DELAY_SECONDS = 120   # Delay before cleaning up progress entries
+PROGRESS_MAX_AGE_SECONDS = 300         # Max age for stale progress entries (5 minutes)
 CONVERSION_TIMEOUT_SECONDS = 120       # Max time for a single conversion
 ERROR_CODES = {
     'INVALID_FORMAT': 'File format is not supported. Supported formats: PNG, JPG/JPEG, WebP, BMP, GIF.',
@@ -83,7 +84,7 @@ if _missing:
 
 
 async def cleanup_old_files() -> None:
-    """Background task to periodically delete old files from the static directory."""
+    """Background task to periodically delete old files and stale progress entries."""
     while True:
         await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
         try:
@@ -109,6 +110,20 @@ async def cleanup_old_files() -> None:
                         logger.error(f"Failed to delete directory {entry_path}: {e}")
         except Exception as e:
             logger.error(f"Error during file cleanup: {e}")
+
+        # Clean up stale progress entries
+        try:
+            now_mono = time.monotonic()
+            stale_keys = [
+                k for k, v in progress_store.items()
+                if now_mono - v.get('_updated_at', 0) > PROGRESS_MAX_AGE_SECONDS
+            ]
+            for k in stale_keys:
+                progress_store.pop(k, None)
+            if stale_keys:
+                logger.info(f"Cleaned up {len(stale_keys)} stale progress entries")
+        except Exception as e:
+            logger.error(f"Error during progress cleanup: {e}")
 
 
 @asynccontextmanager
@@ -327,7 +342,11 @@ async def get_presets() -> JSONResponse:
 
 def _update_progress(request_id: str, stage: str, progress: int) -> None:
     """Update progress for a request."""
-    progress_store[request_id] = {'stage': stage, 'progress': progress}
+    progress_store[request_id] = {
+        'stage': stage,
+        'progress': progress,
+        '_updated_at': time.monotonic(),
+    }
     if stage in ('completed', 'failed'):
         asyncio.get_event_loop().call_later(
             PROGRESS_CLEANUP_DELAY_SECONDS,
@@ -351,7 +370,8 @@ async def stream_progress(request_id: str):
             entry = progress_store.get(request_id)
             if entry and entry['stage'] != last_stage:
                 last_stage = entry['stage']
-                yield f"data: {json.dumps(entry)}\n\n"
+                client_entry = {k: v for k, v in entry.items() if not k.startswith('_')}
+                yield f"data: {json.dumps(client_entry)}\n\n"
                 if entry['stage'] in ('completed', 'failed'):
                     return
             await asyncio.sleep(0.2)

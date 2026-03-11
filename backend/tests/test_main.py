@@ -5,21 +5,21 @@ from unittest.mock import patch, MagicMock
 from fastapi import HTTPException
 from httpx import AsyncClient, ASGITransport
 
-from main import (
-    app,
-    validate_file,
-    validate_file_header,
-    validate_custom_params,
-    _validate_uuid,
-    sanitize_filename,
-    PRESETS,
-    progress_store,
-    _update_progress,
-    limiter,
+from main import app, limiter
+from modules.config import (
     UPLOAD_RATE_LIMIT,
     CONVERSION_TIMEOUT_SECONDS,
     MAX_BASE64_LENGTH,
+    PROGRESS_MAX_AGE_SECONDS,
 )
+from modules.validation import (
+    validate_file,
+    validate_file_header,
+    _validate_uuid,
+    sanitize_filename,
+)
+from modules.presets import PRESETS, validate_custom_params
+from modules.progress import progress_store, _update_progress
 
 
 # --- Unit tests for utility functions ---
@@ -285,7 +285,7 @@ async def test_upload_path_traversal(mock_image_to_svg, mock_getsize):
 
 @pytest.mark.anyio
 @patch("main.os.path.getsize", return_value=2048)
-@patch("main.vtracer")
+@patch("modules.converter.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
 async def test_upload_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
@@ -314,7 +314,7 @@ async def test_upload_success(mock_exists, mock_makedirs, mock_vtracer, mock_get
 
 @pytest.mark.anyio
 @patch("main.os.path.getsize", return_value=2048)
-@patch("main.vtracer")
+@patch("modules.converter.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
 async def test_upload_jpg_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
@@ -341,7 +341,7 @@ async def test_upload_jpg_success(mock_exists, mock_makedirs, mock_vtracer, mock
 
 @pytest.mark.anyio
 @patch("main.os.path.getsize", return_value=2048)
-@patch("main.vtracer")
+@patch("modules.converter.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
 async def test_upload_jpeg_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
@@ -367,7 +367,7 @@ async def test_upload_jpeg_success(mock_exists, mock_makedirs, mock_vtracer, moc
 
 @pytest.mark.anyio
 @patch("main.os.path.getsize", return_value=2048)
-@patch("main.vtracer")
+@patch("modules.converter.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
 async def test_upload_jpg_uppercase_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
@@ -424,7 +424,7 @@ async def test_upload_mixed_formats_sequentially(mock_image_to_svg, mock_getsize
 
 
 @pytest.mark.anyio
-@patch("main.vtracer")
+@patch("modules.converter.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
 async def test_upload_jpg_conversion_failure(mock_exists, mock_makedirs, mock_vtracer):
@@ -437,7 +437,7 @@ async def test_upload_jpg_conversion_failure(mock_exists, mock_makedirs, mock_vt
     data_url = f"data:image/jpeg;base64,{b64}"
 
     with patch("builtins.open", MagicMock()):
-        with patch("main.os.path.exists", side_effect=lambda p: False):
+        with patch("modules.converter.os.path.exists", return_value=False):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 response = await client.post(
@@ -452,7 +452,7 @@ async def test_upload_jpg_conversion_failure(mock_exists, mock_makedirs, mock_vt
 
 @pytest.mark.anyio
 @patch("main.os.path.getsize", return_value=2048)
-@patch("main.vtracer")
+@patch("modules.converter.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
 async def test_upload_webp_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
@@ -478,7 +478,7 @@ async def test_upload_webp_success(mock_exists, mock_makedirs, mock_vtracer, moc
 
 @pytest.mark.anyio
 @patch("main.os.path.getsize", return_value=2048)
-@patch("main.vtracer")
+@patch("modules.converter.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
 async def test_upload_bmp_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
@@ -504,7 +504,7 @@ async def test_upload_bmp_success(mock_exists, mock_makedirs, mock_vtracer, mock
 
 @pytest.mark.anyio
 @patch("main.os.path.getsize", return_value=2048)
-@patch("main.vtracer")
+@patch("modules.converter.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
 async def test_upload_gif_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
@@ -593,7 +593,7 @@ async def test_get_presets():
 
 @pytest.mark.anyio
 @patch("main.os.path.getsize", return_value=2048)
-@patch("main.vtracer")
+@patch("modules.converter.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
 async def test_upload_with_preset(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
@@ -621,7 +621,7 @@ async def test_upload_with_preset(mock_exists, mock_makedirs, mock_vtracer, mock
 
 @pytest.mark.anyio
 @patch("main.os.path.getsize", return_value=2048)
-@patch("main.vtracer")
+@patch("modules.converter.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
 async def test_upload_with_invalid_preset_falls_back(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
@@ -788,7 +788,6 @@ class TestUpdateProgress:
             'progress': 50,
             '_updated_at': time_mod.monotonic() - 600,  # 10 minutes ago
         }
-        from main import PROGRESS_MAX_AGE_SECONDS
         now = time_mod.monotonic()
         is_stale = now - progress_store[request_id]['_updated_at'] > PROGRESS_MAX_AGE_SECONDS
         assert is_stale is True
@@ -923,7 +922,7 @@ async def test_upload_rejects_oversized_base64_payload():
 
 
 @pytest.mark.anyio
-@patch("main.vtracer")
+@patch("modules.converter.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
 async def test_upload_rejects_oversized_svg_output(mock_exists, mock_makedirs, mock_vtracer):

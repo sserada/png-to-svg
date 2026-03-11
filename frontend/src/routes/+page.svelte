@@ -88,6 +88,8 @@
   });
   let isCustom = $derived(selectedPreset === 'custom');
   let dragOver: boolean = $state(false);
+  // Memoized blob URLs for file previews. Using a Map avoids creating
+  // duplicate URLs when Svelte re-renders the #each loop.
   let previewUrlMap: Map<File, string> = $state(new Map());
 
   function revokePreviewUrls() {
@@ -123,6 +125,7 @@
     return `${index}:${name}`;
   }
 
+  /** Upload and convert a single file. Updates fileStatuses reactively via SSE progress. */
   async function processFile(key: string, file: File) {
     fileStatuses[key] = { status: 'processing', stage: 'uploading', progress: 0, displayName: file.name };
 
@@ -173,6 +176,10 @@
     }
   }
 
+  /**
+   * Validate all selected files, then upload valid ones in batches of 3
+   * to avoid overwhelming the server with concurrent requests.
+   */
   async function send() {
     if (!files) return;
     isProcessing = true;
@@ -224,6 +231,7 @@
     files = undefined;
   }
 
+  /** Fetch all completed SVGs, bundle them into a ZIP, and trigger browser download. */
   async function download() {
     downloadError = null;
     isDownloading = true;
@@ -265,6 +273,11 @@
     });
   }
 
+  /**
+   * Recursively read all image files from a dropped directory.
+   * Uses the non-standard webkitGetAsEntry API (supported by all major browsers).
+   * readEntries() returns results in batches, so we loop until an empty batch.
+   */
   async function readDirectoryEntries(dirEntry: FileSystemDirectoryEntry): Promise<File[]> {
     const reader = dirEntry.createReader();
     const files: File[] = [];
@@ -287,6 +300,7 @@
     return files;
   }
 
+  /** Convert a File[] to a FileList using DataTransfer (needed for the file input binding). */
   function filesToFileList(fileArray: File[]): FileList {
     const dt = new DataTransfer();
     for (const file of fileArray) {
@@ -295,6 +309,11 @@
     return dt.files;
   }
 
+  /**
+   * Handle drag-and-drop of files or folders.
+   * If any dropped item is a directory, uses webkitGetAsEntry to recursively
+   * extract image files. Otherwise, uses the standard dataTransfer.files.
+   */
   async function handleDrop(e: DragEvent) {
     e.preventDefault();
     dragOver = false;

@@ -13,6 +13,7 @@
     error?: string;
     stage?: string;
     progress?: number;
+    displayName: string;
   }
 
   import { onDestroy } from 'svelte';
@@ -43,14 +44,18 @@
   let downloadError: string | null = $state(null);
   let isDownloading: boolean = $state(false);
 
-  async function processFile(file: File) {
-    fileStatuses[file.name] = { status: 'processing', stage: 'uploading', progress: 0 };
+  function fileKey(index: number, name: string): string {
+    return `${index}:${name}`;
+  }
+
+  async function processFile(key: string, file: File) {
+    fileStatuses[key] = { status: 'processing', stage: 'uploading', progress: 0, displayName: file.name };
 
     try {
       const data = await Post(file, selectedPreset, (evt: ProgressEvent) => {
-        if (fileStatuses[file.name]?.status === 'processing') {
-          fileStatuses[file.name] = {
-            ...fileStatuses[file.name],
+        if (fileStatuses[key]?.status === 'processing') {
+          fileStatuses[key] = {
+            ...fileStatuses[key],
             stage: evt.stage,
             progress: evt.progress
           };
@@ -58,48 +63,53 @@
       });
 
       if (data.success) {
-        fileStatuses[file.name] = {
+        fileStatuses[key] = {
           status: 'completed',
-          url: data.url
+          url: data.url,
+          displayName: file.name
         };
       } else {
-        fileStatuses[file.name] = {
+        fileStatuses[key] = {
           status: 'failed',
-          error: 'Conversion failed'
+          error: 'Conversion failed',
+          displayName: file.name
         };
       }
     } catch (error: unknown) {
       const message = error instanceof ApiError
         ? (error.detail as { error?: string })?.error || error.message
         : error instanceof Error ? error.message : 'An unexpected error occurred';
-      fileStatuses[file.name] = {
+      fileStatuses[key] = {
         status: 'failed',
-        error: message
+        error: message,
+        displayName: file.name
       };
     }
   }
 
   async function send() {
     if (!files) return;
-    const validFiles: File[] = [];
+    const validEntries: { key: string; file: File }[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      const key = fileKey(i, file.name);
 
       const validationError = validateFile(file);
       if (validationError) {
-        fileStatuses[file.name] = {
+        fileStatuses[key] = {
           status: 'failed',
-          error: validationError
+          error: validationError,
+          displayName: file.name
         };
         continue;
       }
 
-      fileStatuses[file.name] = { status: 'pending' };
-      validFiles.push(file);
+      fileStatuses[key] = { status: 'pending', displayName: file.name };
+      validEntries.push({ key, file });
     }
 
-    await Promise.all(validFiles.map(file => processFile(file)));
+    await Promise.all(validEntries.map(({ key, file }) => processFile(key, file)));
   }
 
   async function download() {
@@ -107,14 +117,14 @@
     isDownloading = true;
     try {
       const zip = new JSZip();
-      for (const [filename, status] of Object.entries(fileStatuses)) {
+      for (const [, status] of Object.entries(fileStatuses)) {
         if (status.status === 'completed' && status.url) {
           const response = await fetch(status.url);
           if (!response.ok) {
-            throw new Error(`Failed to fetch ${filename}`);
+            throw new Error(`Failed to fetch ${status.displayName}`);
           }
           const blob = await response.blob();
-          const svgFilename = filename.replace(/\.(png|jpg|jpeg|webp|bmp|gif)$/i, '.svg');
+          const svgFilename = status.displayName.replace(/\.(png|jpg|jpeg|webp|bmp|gif)$/i, '.svg');
           zip.file(svgFilename, blob);
         }
       }
@@ -225,44 +235,45 @@
         </tr>
       </thead>
       <tbody>
-        {#each Array.from(files) as file}
+        {#each Array.from(files) as file, i}
+          {@const key = fileKey(i, file.name)}
           <tr>
             <td class="filename">{file.name}</td>
             <td>
               <img src={createPreviewUrl(file)} alt={file.name} class="preview-img" />
             </td>
             <td class="status-cell">
-              {#if fileStatuses[file.name]}
-                {#if fileStatuses[file.name].status === 'pending'}
+              {#if fileStatuses[key]}
+                {#if fileStatuses[key].status === 'pending'}
                   <span class="badge badge-pending">Pending</span>
-                {:else if fileStatuses[file.name].status === 'processing'}
+                {:else if fileStatuses[key].status === 'processing'}
                   <div class="processing">
                     <div class="spinner"></div>
                     <span class="stage-label">
-                      {#if fileStatuses[file.name].stage === 'uploading'}
+                      {#if fileStatuses[key].stage === 'uploading'}
                         Uploading...
-                      {:else if fileStatuses[file.name].stage === 'decoding'}
+                      {:else if fileStatuses[key].stage === 'decoding'}
                         Decoding...
-                      {:else if fileStatuses[file.name].stage === 'saving'}
+                      {:else if fileStatuses[key].stage === 'saving'}
                         Saving...
-                      {:else if fileStatuses[file.name].stage === 'converting'}
+                      {:else if fileStatuses[key].stage === 'converting'}
                         Converting...
                       {:else}
                         Processing...
                       {/if}
                     </span>
-                    {#if fileStatuses[file.name].progress != null}
+                    {#if fileStatuses[key].progress != null}
                       <div class="progress-bar">
-                        <div class="progress-fill" style="width: {fileStatuses[file.name].progress}%"></div>
+                        <div class="progress-fill" style="width: {fileStatuses[key].progress}%"></div>
                       </div>
                     {/if}
                   </div>
-                {:else if fileStatuses[file.name].status === 'completed'}
+                {:else if fileStatuses[key].status === 'completed'}
                   <span class="badge badge-success">&#x2713; Completed</span>
-                {:else if fileStatuses[file.name].status === 'failed'}
+                {:else if fileStatuses[key].status === 'failed'}
                   <div class="error-status">
                     <span class="badge badge-error">&#x2717; Failed</span>
-                    <p class="error-message">{fileStatuses[file.name].error}</p>
+                    <p class="error-message">{fileStatuses[key].error}</p>
                   </div>
                 {/if}
               {:else}
@@ -270,11 +281,11 @@
               {/if}
             </td>
             <td>
-              {#if fileStatuses[file.name]?.status === 'completed' && fileStatuses[file.name].url}
-                <img src={fileStatuses[file.name].url} alt="SVG output" class="preview-img" />
-              {:else if fileStatuses[file.name]?.status === 'processing'}
+              {#if fileStatuses[key]?.status === 'completed' && fileStatuses[key].url}
+                <img src={fileStatuses[key].url} alt="SVG output" class="preview-img" />
+              {:else if fileStatuses[key]?.status === 'processing'}
                 <p class="text-muted">Converting...</p>
-              {:else if fileStatuses[file.name]?.status === 'failed'}
+              {:else if fileStatuses[key]?.status === 'failed'}
                 <p class="text-muted">-</p>
               {:else}
                 <p class="text-muted">Waiting...</p>

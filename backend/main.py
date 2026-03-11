@@ -95,13 +95,13 @@ async def cleanup_old_files() -> None:
             if not os.path.exists('static'):
                 continue
             now = time.time()
-            for entry in os.listdir('static'):
-                entry_path = os.path.join('static', entry)
-                if not os.path.isdir(entry_path):
+            for entry in os.scandir('static'):
+                if not entry.is_dir():
                     continue
-                if now - os.path.getmtime(entry_path) > FILE_MAX_AGE_SECONDS:
-                    for file in os.listdir(entry_path):
-                        file_path = os.path.join(entry_path, file)
+                entry_path = entry.path
+                if now - entry.stat().st_mtime > FILE_MAX_AGE_SECONDS:
+                    for file in os.scandir(entry_path):
+                        file_path = file.path
                         try:
                             os.remove(file_path)
                             logger.info(f"Deleted old file: {file_path}")
@@ -395,7 +395,10 @@ def image_to_svg(path: str, params: dict | None = None, preset: str = DEFAULT_PR
     except Exception as e:
         logger.error(f"Conversion failed for {path}: {str(e)}", exc_info=True)
         if os.path.exists(output_path):
-            os.remove(output_path)
+            try:
+                os.remove(output_path)
+            except OSError as remove_err:
+                logger.error(f"Failed to clean up {output_path}: {remove_err}")
         raise HTTPException(
             status_code=500,
             detail={'error': ERROR_CODES['CONVERSION_FAILED'], 'code': 'CONVERSION_FAILED'}
@@ -554,7 +557,10 @@ async def image_processing(request: Request, request_id: str, data: Dict):
         svg_size = os.path.getsize(output_path)
         if svg_size > MAX_SVG_SIZE:
             logger.warning(f"SVG output too large: {svg_size} bytes for request {request_id}")
-            os.remove(output_path)
+            try:
+                os.remove(output_path)
+            except OSError as remove_err:
+                logger.error(f"Failed to remove oversized SVG {output_path}: {remove_err}")
             raise HTTPException(
                 status_code=413,
                 detail={'error': ERROR_CODES['SVG_TOO_LARGE'], 'code': 'SVG_TOO_LARGE'}
@@ -593,16 +599,18 @@ async def get_image(request_id: str):
             status_code=400,
             detail={'error': 'Invalid request_id: must be a valid UUID format', 'code': 'INVALID_UUID'}
         )
-    sanitized_id = sanitize_filename(request_id)
-    request_dir = f'static/{sanitized_id}'
+    request_dir = f'static/{request_id}'
     if not os.path.exists(request_dir):
         raise HTTPException(status_code=404, detail={'error': 'Not found', 'code': 'NOT_FOUND'})
     svg_path = glob.glob(f'{request_dir}/*.svg')
     if len(svg_path) == 0:
         raise HTTPException(status_code=404, detail={'error': 'Not found', 'code': 'NOT_FOUND'})
-    svg_filename = Path(svg_path[0]).name
+    resolved = Path(svg_path[0]).resolve()
+    if not resolved.is_relative_to(Path(request_dir).resolve()):
+        raise HTTPException(status_code=404, detail={'error': 'Not found', 'code': 'NOT_FOUND'})
+    svg_filename = resolved.name
     return FileResponse(
-        svg_path[0],
+        str(resolved),
         media_type='image/svg+xml',
         headers={'Content-Disposition': f'attachment; filename="{svg_filename}"'}
     )

@@ -27,7 +27,7 @@ export class ApiError extends Error {
 }
 
 export interface ProgressEvent {
-  stage: string;
+  stage: 'uploading' | 'decoding' | 'saving' | 'converting' | 'completed' | 'failed' | 'timeout';
   progress: number;
 }
 
@@ -57,8 +57,8 @@ const getBase64 = (data: File): Promise<string> => {
 export const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export interface CustomParams {
-  colormode?: string;
-  mode?: string;
+  colormode?: 'color' | 'binary';
+  mode?: 'spline' | 'polygon' | 'none';
   filter_speckle?: number;
   color_precision?: number;
   layer_difference?: number;

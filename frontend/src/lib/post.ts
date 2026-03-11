@@ -56,17 +56,18 @@ const doPost = async (url: string, data: File, preset: string = 'balanced'): Pro
     body: JSON.stringify({ name : name, data : base64, preset }),
   });
 
-  const result = await response.json();
-
   if (!response.ok) {
-    throw new ApiError(
-      response.statusText,
-      response.status,
-      result.detail || result
-    );
+    let detail: Record<string, unknown> = {};
+    try {
+      const errorBody = await response.json();
+      detail = errorBody.detail || errorBody;
+    } catch {
+      detail = { error: response.statusText };
+    }
+    throw new ApiError(response.statusText, response.status, detail);
   }
 
-  return result as ApiResponse;
+  return await response.json() as ApiResponse;
 }
 
 export const Post = async (

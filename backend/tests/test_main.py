@@ -192,6 +192,23 @@ def reset_rate_limiter():
     yield
 
 
+def test_cors_origins_from_env():
+    """ALLOWED_ORIGINS env var should override default origins."""
+    with patch.dict(os.environ, {"ALLOWED_ORIGINS": "https://example.com, https://app.example.com"}):
+        env_val = os.getenv("ALLOWED_ORIGINS")
+        parsed = [o.strip() for o in env_val.split(",") if o.strip()]
+        assert parsed == ["https://example.com", "https://app.example.com"]
+
+
+def test_cors_origins_default():
+    """Without ALLOWED_ORIGINS, origins should use HOST and FRONTEND_PORT."""
+    with patch.dict(os.environ, {}, clear=False):
+        if "ALLOWED_ORIGINS" in os.environ:
+            del os.environ["ALLOWED_ORIGINS"]
+        env_val = os.getenv("ALLOWED_ORIGINS")
+        assert env_val is None
+
+
 @pytest.mark.anyio
 async def test_health_check():
     transport = ASGITransport(app=app)

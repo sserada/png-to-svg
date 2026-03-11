@@ -1,4 +1,5 @@
 import asyncio
+import os
 import base64
 import pytest
 from unittest.mock import patch, MagicMock
@@ -552,6 +553,7 @@ async def test_download_invalid_uuid():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/backend/download/not-a-uuid")
     assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "INVALID_UUID"
 
 
 @pytest.mark.anyio
@@ -562,6 +564,32 @@ async def test_download_not_found():
             "/backend/download/550e8400-e29b-41d4-a716-446655440001"
         )
     assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "NOT_FOUND"
+
+
+@pytest.mark.anyio
+@patch("main.glob.glob", return_value=["static/550e8400-e29b-41d4-a716-446655440000/test.svg"])
+@patch("main.os.path.exists", return_value=True)
+async def test_download_success_headers(mock_exists, mock_glob):
+    """Download endpoint should return proper Content-Type and Content-Disposition."""
+    # Create a temporary SVG file for FileResponse to read
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".svg", delete=False, mode="w") as f:
+        f.write('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+        tmp_path = f.name
+
+    mock_glob.return_value = [tmp_path]
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/backend/download/550e8400-e29b-41d4-a716-446655440000"
+        )
+
+    os.remove(tmp_path)
+    assert response.status_code == 200
+    assert "image/svg+xml" in response.headers["content-type"]
+    assert "attachment" in response.headers["content-disposition"]
 
 
 # --- SSE Progress endpoint tests ---

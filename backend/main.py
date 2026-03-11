@@ -422,18 +422,26 @@ async def image_processing(request: Request, request_id: str, data: Dict):
         )
 
 
-@app.get('/backend/download/{request_id}', response_class=FileResponse)
+@app.get('/backend/download/{request_id}')
 async def get_image(request_id: str):
     if not _validate_uuid(request_id):
-        return JSONResponse({'error': 'Invalid request_id: must be a valid UUID format'}, status_code=400)
+        raise HTTPException(
+            status_code=400,
+            detail={'error': 'Invalid request_id: must be a valid UUID format', 'code': 'INVALID_UUID'}
+        )
     sanitized_id = sanitize_filename(request_id)
     request_dir = f'static/{sanitized_id}'
     if not os.path.exists(request_dir):
-        return JSONResponse({'error': 'Not found'}, status_code=404)
+        raise HTTPException(status_code=404, detail={'error': 'Not found', 'code': 'NOT_FOUND'})
     svg_path = glob.glob(f'{request_dir}/*.svg')
     if len(svg_path) == 0:
-        return JSONResponse({'error': 'Not found'}, status_code=404)
-    return FileResponse(svg_path[0])
+        raise HTTPException(status_code=404, detail={'error': 'Not found', 'code': 'NOT_FOUND'})
+    svg_filename = Path(svg_path[0]).name
+    return FileResponse(
+        svg_path[0],
+        media_type='image/svg+xml',
+        headers={'Content-Disposition': f'attachment; filename="{svg_filename}"'}
+    )
 
 
 if __name__ == '__main__':

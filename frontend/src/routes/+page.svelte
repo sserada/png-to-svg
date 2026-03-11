@@ -208,16 +208,20 @@
 
   async function retryFile(key: string) {
     const file = fileMap[key];
-    if (!file) return;
+    if (!file || fileStatuses[key]?.status === 'processing') return;
     await processFile(key, file);
   }
 
-  function clearAll() {
+  function resetFileState() {
     revokePreviewUrls();
-    files = undefined;
     fileStatuses = {};
     fileMap = {};
     downloadError = null;
+  }
+
+  function clearAll() {
+    resetFileState();
+    files = undefined;
   }
 
   async function download() {
@@ -248,10 +252,7 @@
   function handleFileInput(e: Event) {
     const input = e.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      revokePreviewUrls();
-      fileStatuses = {};
-      fileMap = {};
-      downloadError = null;
+      resetFileState();
       files = input.files;
     }
   }
@@ -308,22 +309,22 @@
       for (const item of items) {
         const entry = item.webkitGetAsEntry();
         if (!entry) continue;
-        if (entry.isFile && SUPPORTED_EXTENSIONS.test(entry.name)) {
-          extractedFiles.push(await readEntryAsFile(entry as FileSystemFileEntry));
-        } else if (entry.isDirectory) {
-          extractedFiles.push(...await readDirectoryEntries(entry as FileSystemDirectoryEntry));
+        try {
+          if (entry.isFile && SUPPORTED_EXTENSIONS.test(entry.name)) {
+            extractedFiles.push(await readEntryAsFile(entry as FileSystemFileEntry));
+          } else if (entry.isDirectory) {
+            extractedFiles.push(...await readDirectoryEntries(entry as FileSystemDirectoryEntry));
+          }
+        } catch {
+          // Skip unreadable entries
         }
       }
       if (extractedFiles.length > 0) {
-        revokePreviewUrls();
-        fileStatuses = {};
-        downloadError = null;
+        resetFileState();
         files = filesToFileList(extractedFiles);
       }
     } else if (e.dataTransfer.files.length > 0) {
-      revokePreviewUrls();
-      fileStatuses = {};
-      downloadError = null;
+      resetFileState();
       files = e.dataTransfer.files;
     }
   }
@@ -474,7 +475,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each Array.from(files) as file, i}
+        {#each Array.from(files) as file, i (fileKey(i, file.name))}
           {@const key = fileKey(i, file.name)}
           <tr>
             <td class="filename">{file.name}</td>

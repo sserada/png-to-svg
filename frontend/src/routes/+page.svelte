@@ -25,7 +25,47 @@
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
+
+  interface HistoryEntry {
+    filename: string;
+    date: string;
+    preset: string;
+    originalSize?: number;
+    svgSize?: number;
+    conversionTimeMs?: number;
+  }
+
+  const HISTORY_KEY = 'svg-conversion-history';
+  const MAX_HISTORY = 20;
+
+  function loadHistory(): HistoryEntry[] {
+    try {
+      const stored = localStorage.getItem(HISTORY_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveHistory(entries: HistoryEntry[]) {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)));
+  }
+
+  function addToHistory(entry: HistoryEntry) {
+    const entries = loadHistory();
+    entries.unshift(entry);
+    saveHistory(entries);
+    history = entries.slice(0, MAX_HISTORY);
+  }
+
+  function clearHistory() {
+    localStorage.removeItem(HISTORY_KEY);
+    history = [];
+  }
+
+  let history: HistoryEntry[] = $state([]);
+  let showHistory: boolean = $state(false);
 
   let files: FileList | undefined = $state(undefined);
   let fileStatuses: {[key: string]: FileStatus} = $state({});
@@ -56,6 +96,10 @@
     previewUrls.push(url);
     return url;
   }
+
+  onMount(() => {
+    history = loadHistory();
+  });
 
   onDestroy(() => {
     revokePreviewUrls();
@@ -96,6 +140,14 @@
           svgSize: data.svg_size,
           conversionTimeMs: data.conversion_time_ms,
         };
+        addToHistory({
+          filename: file.name,
+          date: new Date().toISOString(),
+          preset: selectedPreset,
+          originalSize: data.original_size,
+          svgSize: data.svg_size,
+          conversionTimeMs: data.conversion_time_ms,
+        });
       } else {
         fileStatuses[key] = {
           status: 'failed',
@@ -473,6 +525,33 @@
     </table>
   {/if}
 
+  {#if history.length > 0}
+    <div class="history-section">
+      <button type="button" class="btn-history-toggle" onclick={() => showHistory = !showHistory}>
+        {showHistory ? 'Hide' : 'Show'} History ({history.length})
+      </button>
+      {#if showHistory}
+        <div class="history-list">
+          {#each history as entry}
+            <div class="history-item">
+              <span class="history-name">{entry.filename}</span>
+              <span class="history-meta">
+                {new Date(entry.date).toLocaleDateString()} &middot; {entry.preset}
+                {#if entry.originalSize != null}
+                  &middot; {formatSize(entry.originalSize)} → {formatSize(entry.svgSize ?? 0)}
+                {/if}
+                {#if entry.conversionTimeMs != null}
+                  &middot; {entry.conversionTimeMs}ms
+                {/if}
+              </span>
+            </div>
+          {/each}
+        </div>
+        <button type="button" class="btn-clear-history" onclick={clearHistory}>Clear History</button>
+      {/if}
+    </div>
+  {/if}
+
   <div class="footer">
     <p>&copy; 2024 <a href="https://hirawatasou.com" target="_blank">So Hirawata</a></p>
   </div>
@@ -831,6 +910,74 @@
   }
 
   .file-download-link:hover {
+    text-decoration: underline;
+  }
+
+  .history-section {
+    width: 50%;
+    margin-top: 1.5rem;
+    margin-bottom: 3rem;
+  }
+
+  .btn-history-toggle {
+    background: none;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.8rem;
+    color: #6b7280;
+    cursor: pointer;
+  }
+
+  .btn-history-toggle:hover {
+    background: #f3f4f6;
+  }
+
+  .history-list {
+    margin-top: 0.5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 0.8rem;
+  }
+
+  .history-item:last-child {
+    border-bottom: none;
+  }
+
+  .history-name {
+    font-weight: 500;
+    color: #374151;
+    word-break: break-word;
+  }
+
+  .history-meta {
+    color: #9ca3af;
+    font-size: 0.75rem;
+    text-align: right;
+    flex-shrink: 0;
+    margin-left: 0.5rem;
+  }
+
+  .btn-clear-history {
+    margin-top: 0.5rem;
+    background: none;
+    border: none;
+    font-size: 0.75rem;
+    color: #dc2626;
+    cursor: pointer;
+    padding: 0.2rem 0;
+  }
+
+  .btn-clear-history:hover {
     text-decoration: underline;
   }
 

@@ -113,6 +113,8 @@
     revokePreviewUrls();
   });
 
+  const SUPPORTED_EXTENSIONS = /\.(png|jpg|jpeg|webp|bmp|gif)$/i;
+
   let fileMap: {[key: string]: File} = $state({});
   let isProcessing: boolean = $state(false);
   let completedCount = $derived(Object.values(fileStatuses).filter(s => s.status === 'completed').length);
@@ -243,7 +245,7 @@
             throw new Error(`Failed to fetch ${status.displayName}`);
           }
           const blob = await response.blob();
-          const svgFilename = status.displayName.replace(/\.(png|jpg|jpeg|webp|bmp|gif)$/i, '.svg');
+          const svgFilename = status.displayName.replace(SUPPORTED_EXTENSIONS, '.svg');
           zip.file(svgFilename, blob);
         }
       }
@@ -263,8 +265,6 @@
       files = input.files;
     }
   }
-
-  const SUPPORTED_EXTENSIONS = /\.(png|jpg|jpeg|webp|bmp|gif)$/i;
 
   async function readEntryAsFile(entry: FileSystemFileEntry): Promise<File> {
     return new Promise((resolve, reject) => {
@@ -548,7 +548,7 @@
                     <br />{fileStatuses[key].conversionTimeMs}ms
                   </p>
                 {/if}
-                <a href={fileStatuses[key].url} download={fileStatuses[key].displayName.replace(/\.(png|jpg|jpeg|webp|bmp|gif)$/i, '.svg')} class="file-download-link">Download SVG</a>
+                <a href={fileStatuses[key].url} download={fileStatuses[key].displayName.replace(SUPPORTED_EXTENSIONS, '.svg')} class="file-download-link">Download SVG</a>
               {:else if fileStatuses[key]?.status === 'processing'}
                 <p class="text-muted">Converting...</p>
               {:else if fileStatuses[key]?.status === 'failed'}

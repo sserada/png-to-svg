@@ -76,6 +76,24 @@ class TestValidateFile:
         # JPEG is now supported
         validate_file("image.jpeg", 1024)
 
+    def test_valid_webp(self):
+        validate_file("image.webp", 1024)
+
+    def test_valid_bmp(self):
+        validate_file("image.bmp", 1024)
+
+    def test_valid_gif(self):
+        validate_file("image.gif", 1024)
+
+    def test_valid_webp_uppercase(self):
+        validate_file("IMAGE.WEBP", 1024)
+
+    def test_valid_bmp_uppercase(self):
+        validate_file("IMAGE.BMP", 1024)
+
+    def test_valid_gif_uppercase(self):
+        validate_file("IMAGE.GIF", 1024)
+
     def test_invalid_extension_txt(self):
         with pytest.raises(HTTPException) as exc_info:
             validate_file("image.txt", 1024)
@@ -338,6 +356,81 @@ async def test_upload_jpg_conversion_failure(mock_exists, mock_makedirs, mock_vt
     assert response.status_code == 500
     result = response.json()
     assert result["detail"]["code"] == "CONVERSION_FAILED"
+
+
+@pytest.mark.anyio
+@patch("main.vtracer")
+@patch("main.os.makedirs")
+@patch("main.os.path.exists", return_value=False)
+async def test_upload_webp_success(mock_exists, mock_makedirs, mock_vtracer):
+    mock_vtracer.convert_image_to_svg_py = MagicMock()
+
+    webp_bytes = b'RIFF' + b'\x00' * 4 + b'WEBP' + b'\x00' * 40
+    b64 = base64.b64encode(webp_bytes).decode()
+    data_url = f"data:image/webp;base64,{b64}"
+
+    with patch("builtins.open", MagicMock()):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                json={"name": "photo.webp", "data": data_url},
+            )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["success"] is True
+    assert result["filename"] == "photo.svg"
+
+
+@pytest.mark.anyio
+@patch("main.vtracer")
+@patch("main.os.makedirs")
+@patch("main.os.path.exists", return_value=False)
+async def test_upload_bmp_success(mock_exists, mock_makedirs, mock_vtracer):
+    mock_vtracer.convert_image_to_svg_py = MagicMock()
+
+    bmp_bytes = b'BM' + b'\x00' * 50
+    b64 = base64.b64encode(bmp_bytes).decode()
+    data_url = f"data:image/bmp;base64,{b64}"
+
+    with patch("builtins.open", MagicMock()):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                json={"name": "photo.bmp", "data": data_url},
+            )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["success"] is True
+    assert result["filename"] == "photo.svg"
+
+
+@pytest.mark.anyio
+@patch("main.vtracer")
+@patch("main.os.makedirs")
+@patch("main.os.path.exists", return_value=False)
+async def test_upload_gif_success(mock_exists, mock_makedirs, mock_vtracer):
+    mock_vtracer.convert_image_to_svg_py = MagicMock()
+
+    gif_bytes = b'GIF89a' + b'\x00' * 50
+    b64 = base64.b64encode(gif_bytes).decode()
+    data_url = f"data:image/gif;base64,{b64}"
+
+    with patch("builtins.open", MagicMock()):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                json={"name": "animation.gif", "data": data_url},
+            )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["success"] is True
+    assert result["filename"] == "animation.svg"
 
 
 @pytest.mark.anyio

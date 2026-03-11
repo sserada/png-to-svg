@@ -20,11 +20,12 @@
 
   function validateFile(file: File): string | null {
     // Check file extension
-    const validExtensions = ['.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG'];
-    const hasValidExtension = validExtensions.some(ext => file.name.endsWith(ext));
+    const validExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'];
+    const lowerName = file.name.toLowerCase();
+    const hasValidExtension = validExtensions.some(ext => lowerName.endsWith(ext));
 
     if (!hasValidExtension) {
-      return 'Only PNG and JPG/JPEG files are allowed';
+      return 'Supported formats: PNG, JPG/JPEG, WebP, BMP, GIF';
     }
 
     // Check file size
@@ -94,7 +95,7 @@
       if (status.status === 'completed' && status.url) {
         const response = await fetch(status.url);
         const blob = await response.blob();
-        const svgFilename = filename.replace(/\.(png|jpg|jpeg)$/i, '.svg');
+        const svgFilename = filename.replace(/\.(png|jpg|jpeg|webp|bmp|gif)$/i, '.svg');
         zip.file(svgFilename, blob);
       }
     }
@@ -117,7 +118,7 @@
       <img src={pngIcon} class="icon" alt="Image icon" />
     </svelte:fragment>
 	  <svelte:fragment slot="message">Upload a file or drag and drop</svelte:fragment>
-	  <svelte:fragment slot="meta">PNG and JPG/JPEG files are supported</svelte:fragment>
+	  <svelte:fragment slot="meta">PNG, JPG/JPEG, WebP, BMP, GIF files are supported</svelte:fragment>
   </FileDropzone>
 
   <div class="buttons">

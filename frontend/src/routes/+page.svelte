@@ -37,12 +37,40 @@
     return null;
   }
 
+  async function processFile(file: File) {
+    fileStatuses[file.name] = { status: 'processing' };
+    fileStatuses = fileStatuses;
+
+    try {
+      const data = await Post(file, selectedPreset);
+
+      if (data.success) {
+        fileStatuses[file.name] = {
+          status: 'completed',
+          url: data.url
+        };
+      } else {
+        fileStatuses[file.name] = {
+          status: 'failed',
+          error: data.error || 'Conversion failed'
+        };
+      }
+    } catch (error: any) {
+      fileStatuses[file.name] = {
+        status: 'failed',
+        error: error.detail?.error || error.message || 'An unexpected error occurred'
+      };
+    }
+    fileStatuses = fileStatuses;
+  }
+
   async function send() {
-    // Initialize all files as pending
+    const validFiles: File[] = [];
+
+    // Validate all files first
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
 
-      // Validate file
       const validationError = validateFile(file);
       if (validationError) {
         fileStatuses[file.name] = {
@@ -53,41 +81,12 @@
       }
 
       fileStatuses[file.name] = { status: 'pending' };
+      validFiles.push(file);
     }
+    fileStatuses = fileStatuses;
 
-    // Process each file
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-
-      // Skip if validation failed
-      if (fileStatuses[file.name].status === 'failed') {
-        continue;
-      }
-
-      // Update status to processing
-      fileStatuses[file.name] = { status: 'processing' };
-
-      try {
-        const data = await Post(file, selectedPreset);
-
-        if (data.success) {
-          fileStatuses[file.name] = {
-            status: 'completed',
-            url: data.url
-          };
-        } else {
-          fileStatuses[file.name] = {
-            status: 'failed',
-            error: data.error || 'Conversion failed'
-          };
-        }
-      } catch (error: any) {
-        fileStatuses[file.name] = {
-          status: 'failed',
-          error: error.detail?.error || error.message || 'An unexpected error occurred'
-        };
-      }
-    }
+    // Process all valid files concurrently
+    await Promise.all(validFiles.map(file => processFile(file)));
   }
 
   async function download() {

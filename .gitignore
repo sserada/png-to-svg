@@ -1,3 +1,6 @@
+### Project ###
+backend/static/
+
 ### ArchLinuxPackages ###
 *.tar
 *.tar.*

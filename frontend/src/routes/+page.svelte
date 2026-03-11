@@ -40,6 +40,8 @@
 
   let completedCount = $derived(Object.values(fileStatuses).filter(s => s.status === 'completed').length);
   let hasCompleted = $derived(completedCount > 0);
+  let downloadError: string | null = $state(null);
+  let isDownloading: boolean = $state(false);
 
   async function processFile(file: File) {
     fileStatuses[file.name] = { status: 'processing', stage: 'uploading', progress: 0 };
@@ -101,17 +103,28 @@
   }
 
   async function download() {
-    const zip = new JSZip();
-    for (const [filename, status] of Object.entries(fileStatuses)) {
-      if (status.status === 'completed' && status.url) {
-        const response = await fetch(status.url);
-        const blob = await response.blob();
-        const svgFilename = filename.replace(/\.(png|jpg|jpeg|webp|bmp|gif)$/i, '.svg');
-        zip.file(svgFilename, blob);
+    downloadError = null;
+    isDownloading = true;
+    try {
+      const zip = new JSZip();
+      for (const [filename, status] of Object.entries(fileStatuses)) {
+        if (status.status === 'completed' && status.url) {
+          const response = await fetch(status.url);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch ${filename}`);
+          }
+          const blob = await response.blob();
+          const svgFilename = filename.replace(/\.(png|jpg|jpeg|webp|bmp|gif)$/i, '.svg');
+          zip.file(svgFilename, blob);
+        }
       }
+      const content = await zip.generateAsync({type: "blob"});
+      saveAs(content, "SVGs.zip");
+    } catch (error: unknown) {
+      downloadError = error instanceof Error ? error.message : 'Download failed';
+    } finally {
+      isDownloading = false;
     }
-    const content = await zip.generateAsync({type: "blob"});
-    saveAs(content, "SVGs.zip");
   }
 
   function handleFileInput(e: Event) {
@@ -187,11 +200,19 @@
     </button>
     {#if hasCompleted}
       <div class="divider"></div>
-      <button type="button" class="btn download" onclick={download}>
-        Download ({completedCount})
+      <button type="button" class="btn download" onclick={download} disabled={isDownloading}>
+        {#if isDownloading}
+          Downloading...
+        {:else}
+          Download ({completedCount})
+        {/if}
       </button>
     {/if}
   </div>
+
+  {#if downloadError}
+    <p class="download-error">{downloadError}</p>
+  {/if}
 
   {#if files && files.length > 0}
     <table>
@@ -508,6 +529,15 @@
   .badge-default {
     background: #f3f4f6;
     color: #9ca3af;
+  }
+
+  .download-error {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: #dc2626;
+    padding: 0.5rem 1rem;
+    background-color: #fee2e2;
+    border-radius: 6px;
   }
 
   .footer {

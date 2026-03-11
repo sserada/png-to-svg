@@ -34,7 +34,8 @@ export interface ProgressEvent {
 const getBackendBase = () => {
   const HOST = import.meta.env.VITE_HOST;
   const backendPORT = import.meta.env.VITE_BACKEND_PORT;
-  return `http://${HOST}:${backendPORT}`;
+  const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+  return `${protocol}//${HOST}:${backendPORT}`;
 }
 
 const baseURL = (): { url: string; id: string } => {

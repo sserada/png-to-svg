@@ -169,12 +169,13 @@ async def test_upload_path_traversal(mock_image_to_svg):
     b64 = base64.b64encode(img_bytes).decode()
     data_url = f"data:image/png;base64,{b64}"
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.post(
-            "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
-            json={"name": "../../etc/passwd.png", "data": data_url},
-        )
+    with patch("builtins.open", MagicMock()):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                json={"name": "../../etc/passwd.png", "data": data_url},
+            )
     # Should succeed with sanitized filename, not write to ../../etc/
     # The filename gets sanitized to "passwd.png"
     assert response.status_code == 200
@@ -203,6 +204,140 @@ async def test_upload_success(mock_exists, mock_makedirs, mock_vtracer):
     result = response.json()
     assert result["success"] is True
     assert result["filename"] == "test.svg"
+
+
+@pytest.mark.anyio
+@patch("main.vtracer")
+@patch("main.os.makedirs")
+@patch("main.os.path.exists", return_value=False)
+async def test_upload_jpg_success(mock_exists, mock_makedirs, mock_vtracer):
+    mock_vtracer.convert_image_to_svg_py = MagicMock()
+
+    # JFIF header for JPG
+    jpg_bytes = b'\xff\xd8\xff\xe0' + b'\x00' * 50
+    b64 = base64.b64encode(jpg_bytes).decode()
+    data_url = f"data:image/jpeg;base64,{b64}"
+
+    with patch("builtins.open", MagicMock()):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                json={"name": "photo.jpg", "data": data_url},
+            )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["success"] is True
+    assert result["filename"] == "photo.svg"
+
+
+@pytest.mark.anyio
+@patch("main.vtracer")
+@patch("main.os.makedirs")
+@patch("main.os.path.exists", return_value=False)
+async def test_upload_jpeg_success(mock_exists, mock_makedirs, mock_vtracer):
+    mock_vtracer.convert_image_to_svg_py = MagicMock()
+
+    jpg_bytes = b'\xff\xd8\xff\xe0' + b'\x00' * 50
+    b64 = base64.b64encode(jpg_bytes).decode()
+    data_url = f"data:image/jpeg;base64,{b64}"
+
+    with patch("builtins.open", MagicMock()):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                json={"name": "photo.jpeg", "data": data_url},
+            )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["success"] is True
+    assert result["filename"] == "photo.svg"
+
+
+@pytest.mark.anyio
+@patch("main.vtracer")
+@patch("main.os.makedirs")
+@patch("main.os.path.exists", return_value=False)
+async def test_upload_jpg_uppercase_success(mock_exists, mock_makedirs, mock_vtracer):
+    mock_vtracer.convert_image_to_svg_py = MagicMock()
+
+    jpg_bytes = b'\xff\xd8\xff\xe0' + b'\x00' * 50
+    b64 = base64.b64encode(jpg_bytes).decode()
+    data_url = f"data:image/jpeg;base64,{b64}"
+
+    with patch("builtins.open", MagicMock()):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                json={"name": "PHOTO.JPG", "data": data_url},
+            )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["success"] is True
+    assert result["filename"] == "PHOTO.svg"
+
+
+@pytest.mark.anyio
+@patch("main.image_to_svg")
+async def test_upload_mixed_formats_sequentially(mock_image_to_svg):
+    """Test uploading PNG, JPG, and JPEG files in sequence."""
+    files = [
+        ("test.png", "image/png", b'\x89PNG\r\n\x1a\n' + b'\x00' * 50),
+        ("test.jpg", "image/jpeg", b'\xff\xd8\xff\xe0' + b'\x00' * 50),
+        ("test.jpeg", "image/jpeg", b'\xff\xd8\xff\xe0' + b'\x00' * 50),
+    ]
+
+    for filename, mime, raw_bytes in files:
+        svg_name = filename.rsplit(".", 1)[0] + ".svg"
+        mock_image_to_svg.return_value = f"static/550e8400-e29b-41d4-a716-446655440000/{svg_name}"
+
+        b64 = base64.b64encode(raw_bytes).decode()
+        data_url = f"data:{mime};base64,{b64}"
+
+        with patch("builtins.open", MagicMock()):
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.post(
+                    "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                    json={"name": filename, "data": data_url},
+                )
+
+        assert response.status_code == 200, f"Failed for {filename}"
+        result = response.json()
+        assert result["success"] is True
+        assert result["filename"] == svg_name
+
+
+@pytest.mark.anyio
+@patch("main.vtracer")
+@patch("main.os.makedirs")
+@patch("main.os.path.exists", return_value=False)
+async def test_upload_jpg_conversion_failure(mock_exists, mock_makedirs, mock_vtracer):
+    mock_vtracer.convert_image_to_svg_py = MagicMock(
+        side_effect=Exception("Corrupted image")
+    )
+
+    jpg_bytes = b'\xff\xd8\xff\xe0' + b'\x00' * 50
+    b64 = base64.b64encode(jpg_bytes).decode()
+    data_url = f"data:image/jpeg;base64,{b64}"
+
+    with patch("builtins.open", MagicMock()):
+        with patch("main.os.path.exists", side_effect=lambda p: False):
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.post(
+                    "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                    json={"name": "corrupted.jpg", "data": data_url},
+                )
+
+    assert response.status_code == 500
+    result = response.json()
+    assert result["detail"]["code"] == "CONVERSION_FAILED"
 
 
 @pytest.mark.anyio

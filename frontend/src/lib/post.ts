@@ -45,16 +45,32 @@ const getBase64 = (data: File): Promise<string> => {
   });
 }
 
+export const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
 const doPost = async (url: string, data: File, preset: string = 'balanced'): Promise<ApiResponse> => {
   const name = data.name;
   const base64 = await getBase64(data);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ name : name, data : base64, preset }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name : name, data : base64, preset }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiError('Request timed out', 0, { error: 'Upload timed out. The file may be too large or the server is unresponsive.' });
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     let detail: Record<string, unknown> = {};

@@ -98,6 +98,33 @@ describe('Post', () => {
     expect(body.preset).toBe('balanced');
   });
 
+  it('should throw ApiError on fetch abort', async () => {
+    global.fetch = vi.fn().mockRejectedValue(
+      new DOMException('The operation was aborted.', 'AbortError')
+    );
+
+    const file = new File(['test'], 'test.png', { type: 'image/png' });
+    await expect(Post(file, 'balanced')).rejects.toMatchObject({
+      message: 'Request timed out',
+      status: 0,
+      detail: { error: 'Upload timed out. The file may be too large or the server is unresponsive.' },
+    });
+  });
+
+  it('should pass AbortSignal to fetch', async () => {
+    const mockResponse = { success: true, url: 'http://test/out.svg', filename: 'out.svg' };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockResponse)
+    });
+
+    const file = new File(['test'], 'test.png', { type: 'image/png' });
+    await Post(file, 'balanced');
+
+    const callArgs = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(callArgs[1].signal).toBeInstanceOf(AbortSignal);
+  });
+
   it('should send file name and base64 data in request body', async () => {
     const mockResponse = { success: true, url: 'http://test/out.svg', filename: 'out.svg' };
 

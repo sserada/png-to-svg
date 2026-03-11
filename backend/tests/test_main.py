@@ -867,3 +867,30 @@ async def test_upload_rejects_oversized_base64_payload():
         )
     assert response.status_code == 413
     assert response.json()["detail"]["code"] == "PAYLOAD_TOO_LARGE"
+
+
+@pytest.mark.anyio
+@patch("main.vtracer")
+@patch("main.os.makedirs")
+@patch("main.os.path.exists", return_value=False)
+async def test_upload_rejects_oversized_svg_output(mock_exists, mock_makedirs, mock_vtracer):
+    """SVG output exceeding MAX_SVG_SIZE should be rejected."""
+    mock_vtracer.convert_image_to_svg_py = MagicMock()
+
+    png_bytes = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
+    b64 = base64.b64encode(png_bytes).decode()
+    data_url = f"data:image/png;base64,{b64}"
+
+    # Mock getsize to return a value exceeding MAX_SVG_SIZE
+    with patch("builtins.open", MagicMock()), \
+         patch("main.os.path.getsize", return_value=51 * 1024 * 1024), \
+         patch("main.os.remove") as mock_remove:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                json={"name": "test.png", "data": data_url},
+            )
+    assert response.status_code == 413
+    assert response.json()["detail"]["code"] == "SVG_TOO_LARGE"
+    mock_remove.assert_called_once()

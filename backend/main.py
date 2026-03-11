@@ -38,6 +38,7 @@ SSE_TIMEOUT_SECONDS = 60              # Max time for SSE progress stream
 PROGRESS_CLEANUP_DELAY_SECONDS = 120   # Delay before cleaning up progress entries
 PROGRESS_MAX_AGE_SECONDS = 300         # Max age for stale progress entries (5 minutes)
 CONVERSION_TIMEOUT_SECONDS = 120       # Max time for a single conversion
+MAX_SVG_SIZE = 50 * 1024 * 1024        # 50MB max SVG output size
 ERROR_CODES = {
     'INVALID_FORMAT': 'File format is not supported. Supported formats: PNG, JPG/JPEG, WebP, BMP, GIF.',
     'FILE_TOO_LARGE': f'File size exceeds the maximum limit of {MAX_FILE_SIZE / (1024 * 1024):.0f}MB.',
@@ -45,6 +46,7 @@ ERROR_CODES = {
     'CONVERSION_TIMEOUT': 'Conversion timed out. The image may be too complex for this preset.',
     'MISSING_DATA': 'Invalid request data. Please provide both file name and data.',
     'PAYLOAD_TOO_LARGE': 'Base64 payload exceeds the maximum allowed size.',
+    'SVG_TOO_LARGE': 'Generated SVG is too large. Try a simpler image or the "fast" preset.',
     'INVALID_FILE_HEADER': 'File content does not match its extension. The file may be corrupted or renamed.',
 }
 
@@ -469,6 +471,13 @@ async def image_processing(request: Request, request_id: str, data: Dict):
         conversion_time_ms = round((time.monotonic() - convert_start) * 1000)
 
         svg_size = os.path.getsize(output_path)
+        if svg_size > MAX_SVG_SIZE:
+            logger.warning(f"SVG output too large: {svg_size} bytes for request {request_id}")
+            os.remove(output_path)
+            raise HTTPException(
+                status_code=413,
+                detail={'error': ERROR_CODES['SVG_TOO_LARGE'], 'code': 'SVG_TOO_LARGE'}
+            )
         svg_filename = Path(output_path).name
         response_url = f'http://{host}:{port}/static/{request_id}/{svg_filename}'
 

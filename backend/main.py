@@ -43,7 +43,7 @@ ERROR_CODES = {
     'CONVERSION_FAILED': 'Failed to convert image to SVG. The image may be corrupted or too complex.',
     'CONVERSION_TIMEOUT': 'Conversion timed out. The image may be too complex for this preset.',
     'MISSING_DATA': 'Invalid request data. Please provide both file name and data.',
-    'PAYLOAD_TOO_LARGE': f'Base64 payload exceeds the maximum allowed size.',
+    'PAYLOAD_TOO_LARGE': 'Base64 payload exceeds the maximum allowed size.',
 }
 
 # Rate limiting

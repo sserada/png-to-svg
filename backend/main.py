@@ -2,6 +2,7 @@ import json
 import os
 import glob
 import base64
+import binascii
 import asyncio
 import time
 import uuid
@@ -39,6 +40,7 @@ PROGRESS_CLEANUP_DELAY_SECONDS = 120   # Delay before cleaning up progress entri
 PROGRESS_MAX_AGE_SECONDS = 300         # Max age for stale progress entries (5 minutes)
 CONVERSION_TIMEOUT_SECONDS = 120       # Max time for a single conversion
 MAX_SVG_SIZE = 50 * 1024 * 1024        # 50MB max SVG output size
+DEFAULT_PRESET = 'balanced'
 ERROR_CODES = {
     'INVALID_FORMAT': 'File format is not supported. Supported formats: PNG, JPG/JPEG, WebP, BMP, GIF.',
     'FILE_TOO_LARGE': f'File size exceeds the maximum limit of {MAX_FILE_SIZE / (1024 * 1024):.0f}MB.',
@@ -314,7 +316,7 @@ def validate_custom_params(params: dict) -> dict:
     Raises:
         HTTPException: If any parameter is invalid
     """
-    base = dict(PRESETS['balanced'])
+    base = dict(PRESETS[DEFAULT_PRESET])
     for key, value in params.items():
         if key not in CUSTOM_PARAM_RANGES:
             continue  # Ignore unknown keys
@@ -362,7 +364,7 @@ def validate_custom_params(params: dict) -> dict:
     return base
 
 
-def image_to_svg(path: str, params: dict | None = None, preset: str = 'balanced') -> str:
+def image_to_svg(path: str, params: dict | None = None, preset: str = DEFAULT_PRESET) -> str:
     """
     Convert image to SVG using vtracer for true vectorization.
 
@@ -379,7 +381,7 @@ def image_to_svg(path: str, params: dict | None = None, preset: str = 'balanced'
     """
     output_path = str(Path(path).with_suffix('.svg'))
     if params is None:
-        params = PRESETS.get(preset, PRESETS['balanced'])
+        params = PRESETS.get(preset, PRESETS[DEFAULT_PRESET])
 
     try:
         logger.info(f"Starting conversion: {path} (preset: {preset})")
@@ -411,7 +413,7 @@ async def get_presets() -> JSONResponse:
     """Return available conversion presets and custom parameter definitions."""
     return JSONResponse({
         'presets': list(PRESETS.keys()),
-        'default': 'balanced',
+        'default': DEFAULT_PRESET,
         'preset_values': PRESETS,
         'custom_params': CUSTOM_PARAM_RANGES,
     })
@@ -425,7 +427,7 @@ def _update_progress(request_id: str, stage: str, progress: int) -> None:
         '_updated_at': time.monotonic(),
     }
     if stage in ('completed', 'failed'):
-        asyncio.get_event_loop().call_later(
+        asyncio.get_running_loop().call_later(
             PROGRESS_CLEANUP_DELAY_SECONDS,
             progress_store.pop, request_id, None
         )
@@ -502,7 +504,7 @@ async def image_processing(request: Request, request_id: str, data: Dict):
 
         try:
             decoded_img = base64.b64decode(img_data, validate=True)
-        except Exception:
+        except binascii.Error:
             raise HTTPException(
                 status_code=400,
                 detail={'error': 'Invalid base64 data.', 'code': 'INVALID_BASE64'}
@@ -514,8 +516,7 @@ async def image_processing(request: Request, request_id: str, data: Dict):
         _update_progress(request_id, 'saving', 25)
 
         request_dir = f'static/{request_id}'
-        if not os.path.exists(request_dir):
-            os.makedirs(request_dir, exist_ok=True)
+        os.makedirs(request_dir, exist_ok=True)
 
         file_path = f'{request_dir}/{name}'
         with open(file_path, 'wb') as f:

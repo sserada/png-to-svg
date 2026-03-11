@@ -88,16 +88,18 @@
   });
   let isCustom = $derived(selectedPreset === 'custom');
   let dragOver: boolean = $state(false);
-  let previewUrls: string[] = $state([]);
+  let previewUrlMap: Map<File, string> = $state(new Map());
 
   function revokePreviewUrls() {
-    previewUrls.forEach(url => URL.revokeObjectURL(url));
-    previewUrls = [];
+    previewUrlMap.forEach(url => URL.revokeObjectURL(url));
+    previewUrlMap = new Map();
   }
 
-  function createPreviewUrl(file: File): string {
+  function getPreviewUrl(file: File): string {
+    const existing = previewUrlMap.get(file);
+    if (existing) return existing;
     const url = URL.createObjectURL(file);
-    previewUrls.push(url);
+    previewUrlMap.set(file, url);
     return url;
   }
 
@@ -477,9 +479,9 @@
           <tr>
             <td class="filename">{file.name}</td>
             <td>
-              <img src={createPreviewUrl(file)} alt={file.name} class="preview-img" />
+              <img src={getPreviewUrl(file)} alt={file.name} class="preview-img" />
             </td>
-            <td class="status-cell">
+            <td class="status-cell" aria-live="polite">
               {#if fileStatuses[key]}
                 {#if fileStatuses[key].status === 'pending'}
                   <span class="badge badge-pending">Pending</span>
@@ -614,6 +616,11 @@
   .dropzone:hover, .dropzone.drag-over {
     border-color: #3b82f6;
     background-color: rgba(59, 130, 246, 0.05);
+  }
+
+  .dropzone:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
   }
 
   .dropzone-message {
@@ -1014,8 +1021,12 @@
       width: 90vw;
     }
 
-    .dropzone, .buttons, table {
+    .dropzone, .buttons, table, .custom-params, .history-section {
       width: 100%;
+    }
+
+    .custom-params {
+      grid-template-columns: 1fr;
     }
 
     .btn {

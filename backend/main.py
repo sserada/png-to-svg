@@ -261,10 +261,12 @@ async def image_processing(request: Request, request_id: str, data: Dict):
                 detail={'error': ERROR_CODES['SVG_TOO_LARGE'], 'code': 'SVG_TOO_LARGE'}
             )
 
-        # Build response URL using the request's protocol (supports HTTPS proxies)
+        # Build response URL using the request's Host header so the browser can reach it
+        # (env var host could be 0.0.0.0 which is unreachable from other machines)
         svg_filename = Path(output_path).name
         scheme = request.url.scheme
-        response_url = f'{scheme}://{host}:{port}/static/{request_id}/{svg_filename}'
+        request_host = request.headers.get('host', f'{host}:{port}')
+        response_url = f'{scheme}://{request_host}/static/{request_id}/{svg_filename}'
 
         _update_progress(request_id, 'completed', 100)
 

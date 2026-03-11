@@ -196,7 +196,11 @@
       validEntries.push({ key, file });
     }
 
-    await Promise.all(validEntries.map(({ key, file }) => processFile(key, file)));
+    const CONCURRENCY_LIMIT = 3;
+    for (let i = 0; i < validEntries.length; i += CONCURRENCY_LIMIT) {
+      const batch = validEntries.slice(i, i + CONCURRENCY_LIMIT);
+      await Promise.all(batch.map(({ key, file }) => processFile(key, file)));
+    }
     isProcessing = false;
   }
 
@@ -578,6 +582,7 @@
     align-items: center;
     justify-content: center;
     width: 80vw;
+    max-width: 900px;
     margin: 0 auto;
     margin-top: 20vh;
   }

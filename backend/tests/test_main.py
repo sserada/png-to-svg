@@ -646,6 +646,23 @@ async def test_upload_with_invalid_preset_falls_back(mock_exists, mock_makedirs,
 
 
 @pytest.mark.anyio
+async def test_upload_rejects_non_string_preset():
+    png_bytes = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
+    b64 = base64.b64encode(png_bytes).decode()
+    data_url = f"data:image/png;base64,{b64}"
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+            json={"name": "test.png", "data": data_url, "preset": 123},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "INVALID_PRESET"
+
+
+@pytest.mark.anyio
 async def test_download_invalid_uuid():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

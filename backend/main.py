@@ -442,7 +442,7 @@ async def stream_progress(request_id: str):
     if not _validate_uuid(request_id):
         raise HTTPException(
             status_code=400,
-            detail={'error': 'Invalid request_id', 'code': 'INVALID_UUID'}
+            detail={'error': 'Invalid request_id: must be a valid UUID format', 'code': 'INVALID_UUID'}
         )
 
     async def event_generator():
@@ -484,6 +484,13 @@ async def image_processing(request: Request, request_id: str, data: Dict):
             raise HTTPException(
                 status_code=400,
                 detail={'error': ERROR_CODES['MISSING_DATA'], 'code': 'MISSING_DATA'}
+            )
+
+        preset = data.get('preset', DEFAULT_PRESET)
+        if not isinstance(preset, str):
+            raise HTTPException(
+                status_code=400,
+                detail={'error': 'Invalid preset: must be a string', 'code': 'INVALID_PRESET'}
             )
 
         _update_progress(request_id, 'decoding', 10)
@@ -531,13 +538,13 @@ async def image_processing(request: Request, request_id: str, data: Dict):
         original_size = len(decoded_img)
 
         # Convert to SVG (run in thread pool to avoid blocking event loop)
-        preset = data.get('preset', 'balanced')
         custom_params = data.get('custom_params')
         if custom_params and isinstance(custom_params, dict):
             conversion_params = validate_custom_params(custom_params)
         else:
             if preset not in PRESETS:
-                preset = 'balanced'
+                logger.warning(f"Invalid preset '{preset}' for request {request_id}, using default")
+                preset = DEFAULT_PRESET
             conversion_params = None
 
         convert_start = time.monotonic()
@@ -566,7 +573,8 @@ async def image_processing(request: Request, request_id: str, data: Dict):
                 detail={'error': ERROR_CODES['SVG_TOO_LARGE'], 'code': 'SVG_TOO_LARGE'}
             )
         svg_filename = Path(output_path).name
-        response_url = f'http://{host}:{port}/static/{request_id}/{svg_filename}'
+        scheme = request.url.scheme
+        response_url = f'{scheme}://{host}:{port}/static/{request_id}/{svg_filename}'
 
         _update_progress(request_id, 'completed', 100)
 

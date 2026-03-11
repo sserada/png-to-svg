@@ -68,9 +68,17 @@ class TestValidateFile:
     def test_valid_png_uppercase(self):
         validate_file("IMAGE.PNG", 1024)
 
-    def test_invalid_extension_jpg(self):
+    def test_valid_jpg(self):
+        # JPG is now supported
+        validate_file("image.jpg", 1024)
+
+    def test_valid_jpeg(self):
+        # JPEG is now supported
+        validate_file("image.jpeg", 1024)
+
+    def test_invalid_extension_txt(self):
         with pytest.raises(HTTPException) as exc_info:
-            validate_file("image.jpg", 1024)
+            validate_file("image.txt", 1024)
         assert exc_info.value.status_code == 400
 
     def test_invalid_extension_svg(self):
@@ -136,23 +144,27 @@ async def test_upload_missing_data():
 
 @pytest.mark.anyio
 async def test_upload_invalid_format():
-    # Create a small valid base64 payload
+    # Create a small valid base64 payload with invalid file extension
     img_bytes = b"\x00" * 100
     b64 = base64.b64encode(img_bytes).decode()
-    data_url = f"data:image/jpeg;base64,{b64}"
+    data_url = f"data:text/plain;base64,{b64}"
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
-            json={"name": "test.jpg", "data": data_url},
+            json={"name": "test.txt", "data": data_url},
         )
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "INVALID_FORMAT"
 
 
 @pytest.mark.anyio
-async def test_upload_path_traversal():
+@patch("main.image_to_svg")
+async def test_upload_path_traversal(mock_image_to_svg):
+    # Mock vtracer to avoid actual conversion
+    mock_image_to_svg.return_value = "static/550e8400-e29b-41d4-a716-446655440000/passwd.svg"
+
     img_bytes = b"\x00" * 100
     b64 = base64.b64encode(img_bytes).decode()
     data_url = f"data:image/png;base64,{b64}"
@@ -165,7 +177,7 @@ async def test_upload_path_traversal():
         )
     # Should succeed with sanitized filename, not write to ../../etc/
     # The filename gets sanitized to "passwd.png"
-    assert response.status_code in (200, 500)  # 500 if vtracer fails on dummy data
+    assert response.status_code == 200
 
 
 @pytest.mark.anyio

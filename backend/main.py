@@ -44,6 +44,17 @@ ERROR_CODES = {
     'CONVERSION_TIMEOUT': 'Conversion timed out. The image may be too complex for this preset.',
     'MISSING_DATA': 'Invalid request data. Please provide both file name and data.',
     'PAYLOAD_TOO_LARGE': 'Base64 payload exceeds the maximum allowed size.',
+    'INVALID_FILE_HEADER': 'File content does not match its extension. The file may be corrupted or renamed.',
+}
+
+# Magic number signatures for supported image formats
+IMAGE_SIGNATURES = {
+    '.png': [b'\x89PNG\r\n\x1a\n'],
+    '.jpg': [b'\xff\xd8\xff'],
+    '.jpeg': [b'\xff\xd8\xff'],
+    '.gif': [b'GIF87a', b'GIF89a'],
+    '.bmp': [b'BM'],
+    '.webp': [b'RIFF'],  # Full check: RIFF????WEBP
 }
 
 # Rate limiting
@@ -167,6 +178,35 @@ def sanitize_filename(filename: str) -> str:
             detail={'error': 'Invalid filename.', 'code': 'INVALID_FILENAME'}
         )
     return sanitized
+
+
+def validate_file_header(filename: str, data: bytes) -> None:
+    """
+    Validate that file content matches its extension using magic numbers.
+
+    Raises:
+        HTTPException: If file header doesn't match the extension
+    """
+    file_ext = Path(filename).suffix.lower()
+    signatures = IMAGE_SIGNATURES.get(file_ext)
+    if signatures is None:
+        return  # Extension not in signature map, skip header check
+
+    if not any(data.startswith(sig) for sig in signatures):
+        logger.warning(f"File header mismatch for {filename}: extension {file_ext} "
+                       f"but header bytes {data[:8].hex()}")
+        raise HTTPException(
+            status_code=400,
+            detail={'error': ERROR_CODES['INVALID_FILE_HEADER'], 'code': 'INVALID_FILE_HEADER'}
+        )
+
+    # Additional check for WebP: RIFF????WEBP
+    if file_ext == '.webp' and len(data) >= 12 and data[8:12] != b'WEBP':
+        logger.warning(f"File is RIFF but not WebP: {filename}")
+        raise HTTPException(
+            status_code=400,
+            detail={'error': ERROR_CODES['INVALID_FILE_HEADER'], 'code': 'INVALID_FILE_HEADER'}
+        )
 
 
 def validate_file(filename: str, file_size: int) -> None:
@@ -368,6 +408,7 @@ async def image_processing(request: Request, request_id: str, data: Dict):
             )
 
         validate_file(name, len(decoded_img))
+        validate_file_header(name, decoded_img)
 
         _update_progress(request_id, 'saving', 25)
 

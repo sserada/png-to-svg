@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration constants
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
+MAX_BASE64_LENGTH = MAX_FILE_SIZE * 4 // 3 + 100  # Base64 overhead + padding
 ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'}
 CLEANUP_INTERVAL_SECONDS = 600   # Run cleanup every 10 minutes
 FILE_MAX_AGE_SECONDS = 3600      # Delete files older than 1 hour
@@ -42,6 +43,7 @@ ERROR_CODES = {
     'CONVERSION_FAILED': 'Failed to convert image to SVG. The image may be corrupted or too complex.',
     'CONVERSION_TIMEOUT': 'Conversion timed out. The image may be too complex for this preset.',
     'MISSING_DATA': 'Invalid request data. Please provide both file name and data.',
+    'PAYLOAD_TOO_LARGE': f'Base64 payload exceeds the maximum allowed size.',
 }
 
 # Rate limiting
@@ -348,6 +350,13 @@ async def image_processing(request: Request, request_id: str, data: Dict):
             raise HTTPException(
                 status_code=400,
                 detail={'error': 'Malformed data URL: missing base64 content.', 'code': 'MALFORMED_DATA_URL'}
+            )
+
+        if len(img_data) > MAX_BASE64_LENGTH:
+            logger.warning(f"Base64 payload too large: {len(img_data)} chars (max {MAX_BASE64_LENGTH})")
+            raise HTTPException(
+                status_code=413,
+                detail={'error': ERROR_CODES['PAYLOAD_TOO_LARGE'], 'code': 'PAYLOAD_TOO_LARGE'}
             )
 
         try:

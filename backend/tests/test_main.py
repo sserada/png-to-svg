@@ -17,6 +17,7 @@ from main import (
     limiter,
     UPLOAD_RATE_LIMIT,
     CONVERSION_TIMEOUT_SECONDS,
+    MAX_BASE64_LENGTH,
 )
 
 
@@ -766,3 +767,17 @@ async def test_upload_strict_base64_rejects_whitespace():
         )
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "INVALID_BASE64"
+
+
+@pytest.mark.anyio
+async def test_upload_rejects_oversized_base64_payload():
+    """Base64 payload exceeding MAX_BASE64_LENGTH should be rejected before decoding."""
+    oversized_data = "A" * (MAX_BASE64_LENGTH + 1)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+            json={"name": "test.png", "data": f"data:image/png;base64,{oversized_data}"},
+        )
+    assert response.status_code == 413
+    assert response.json()["detail"]["code"] == "PAYLOAD_TOO_LARGE"

@@ -194,7 +194,7 @@
     onkeydown={(e) => { if (e.key === 'Enter') document.getElementById('file-input')?.click(); }}
     onclick={() => document.getElementById('file-input')?.click()}
   >
-    <img src={pngIcon} class="icon" alt="Image icon" />
+    <img src={pngIcon} class="icon" alt="Upload icon" />
     <p class="dropzone-message">Upload a file or drag and drop</p>
     <p class="dropzone-meta">PNG, JPG/JPEG, WebP, BMP, GIF files are supported</p>
     <input
@@ -209,10 +209,10 @@
 
   <div class="preset-selector">
     <label for="preset">Quality Preset:</label>
-    <select id="preset" bind:value={selectedPreset} class="select">
-      <option value="high_quality">High Quality</option>
-      <option value="balanced">Balanced</option>
-      <option value="fast">Fast</option>
+    <select id="preset" bind:value={selectedPreset} class="select" title="Select conversion quality preset">
+      <option value="high_quality" title="Best detail, larger SVG, slower conversion">High Quality</option>
+      <option value="balanced" title="Good balance of detail, size, and speed">Balanced</option>
+      <option value="fast" title="Fastest conversion, smaller SVG, less detail">Fast</option>
     </select>
   </div>
 

@@ -12,6 +12,8 @@ from main import (
     PRESETS,
     progress_store,
     _update_progress,
+    limiter,
+    UPLOAD_RATE_LIMIT,
 )
 
 
@@ -128,6 +130,13 @@ class TestValidateFile:
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reset rate limiter state before each test."""
+    limiter.reset()
+    yield
 
 
 @pytest.mark.anyio
@@ -629,3 +638,40 @@ async def test_upload_invalid_base64_data():
         )
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "INVALID_BASE64"
+
+
+# --- Rate limiting tests ---
+
+
+def test_upload_rate_limit_constant():
+    """Verify the rate limit is configured."""
+    assert UPLOAD_RATE_LIMIT == "10/minute"
+
+
+@pytest.mark.anyio
+async def test_upload_rate_limit_exceeded():
+    """Exceeding the upload rate limit should return 429."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Send 11 requests (limit is 10/minute) - use invalid UUID to fail fast
+        for _ in range(10):
+            await client.post(
+                "/backend/upload/not-a-uuid",
+                json={"name": "test.png", "data": "x"},
+            )
+        # 11th request should be rate limited
+        response = await client.post(
+            "/backend/upload/not-a-uuid",
+            json={"name": "test.png", "data": "x"},
+        )
+    assert response.status_code == 429
+
+
+@pytest.mark.anyio
+async def test_health_not_rate_limited():
+    """Health endpoint should not be rate limited."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        for _ in range(15):
+            response = await client.get("/backend/health")
+            assert response.status_code == 200

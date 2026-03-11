@@ -9,6 +9,7 @@ from main import (
     validate_file,
     _validate_uuid,
     sanitize_filename,
+    PRESETS,
 )
 
 
@@ -431,6 +432,91 @@ async def test_upload_gif_success(mock_exists, mock_makedirs, mock_vtracer):
     result = response.json()
     assert result["success"] is True
     assert result["filename"] == "animation.svg"
+
+
+class TestPresets:
+    def test_presets_exist(self):
+        assert 'high_quality' in PRESETS
+        assert 'balanced' in PRESETS
+        assert 'fast' in PRESETS
+
+    def test_preset_keys(self):
+        for preset_name, params in PRESETS.items():
+            assert 'colormode' in params
+            assert 'filter_speckle' in params
+            assert 'color_precision' in params
+
+    def test_high_quality_more_precise(self):
+        assert PRESETS['high_quality']['color_precision'] > PRESETS['balanced']['color_precision']
+        assert PRESETS['high_quality']['max_iterations'] > PRESETS['balanced']['max_iterations']
+
+    def test_fast_less_precise(self):
+        assert PRESETS['fast']['color_precision'] < PRESETS['balanced']['color_precision']
+        assert PRESETS['fast']['max_iterations'] < PRESETS['balanced']['max_iterations']
+
+
+@pytest.mark.anyio
+async def test_get_presets():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/backend/presets")
+    assert response.status_code == 200
+    result = response.json()
+    assert 'presets' in result
+    assert 'balanced' in result['presets']
+    assert result['default'] == 'balanced'
+
+
+@pytest.mark.anyio
+@patch("main.vtracer")
+@patch("main.os.makedirs")
+@patch("main.os.path.exists", return_value=False)
+async def test_upload_with_preset(mock_exists, mock_makedirs, mock_vtracer):
+    mock_vtracer.convert_image_to_svg_py = MagicMock()
+
+    png_bytes = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
+    b64 = base64.b64encode(png_bytes).decode()
+    data_url = f"data:image/png;base64,{b64}"
+
+    with patch("builtins.open", MagicMock()):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                json={"name": "test.png", "data": data_url, "preset": "high_quality"},
+            )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["success"] is True
+    # Verify vtracer was called with high_quality params
+    call_kwargs = mock_vtracer.convert_image_to_svg_py.call_args
+    assert call_kwargs[1]['color_precision'] == 8
+
+
+@pytest.mark.anyio
+@patch("main.vtracer")
+@patch("main.os.makedirs")
+@patch("main.os.path.exists", return_value=False)
+async def test_upload_with_invalid_preset_falls_back(mock_exists, mock_makedirs, mock_vtracer):
+    mock_vtracer.convert_image_to_svg_py = MagicMock()
+
+    png_bytes = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
+    b64 = base64.b64encode(png_bytes).decode()
+    data_url = f"data:image/png;base64,{b64}"
+
+    with patch("builtins.open", MagicMock()):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                json={"name": "test.png", "data": data_url, "preset": "nonexistent"},
+            )
+
+    assert response.status_code == 200
+    # Should fall back to balanced
+    call_kwargs = mock_vtracer.convert_image_to_svg_py.call_args
+    assert call_kwargs[1]['color_precision'] == 6
 
 
 @pytest.mark.anyio

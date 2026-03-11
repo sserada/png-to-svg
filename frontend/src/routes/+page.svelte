@@ -15,6 +15,7 @@
 
   let files: FileList;
   let fileStatuses: {[key: string]: FileStatus} = {};
+  let selectedPreset: string = 'balanced';
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -67,7 +68,7 @@
       fileStatuses[file.name] = { status: 'processing' };
 
       try {
-        const data = await Post(file);
+        const data = await Post(file, selectedPreset);
 
         if (data.success) {
           fileStatuses[file.name] = {
@@ -120,6 +121,15 @@
 	  <svelte:fragment slot="message">Upload a file or drag and drop</svelte:fragment>
 	  <svelte:fragment slot="meta">PNG, JPG/JPEG, WebP, BMP, GIF files are supported</svelte:fragment>
   </FileDropzone>
+
+  <div class="preset-selector">
+    <label for="preset">Quality Preset:</label>
+    <select id="preset" bind:value={selectedPreset} class="select">
+      <option value="high_quality">High Quality</option>
+      <option value="balanced">Balanced</option>
+      <option value="fast">Fast</option>
+    </select>
+  </div>
 
   <div class="buttons">
     <button type="button" class="btn variant-filled send" on:click={send} disabled={!files || files.length === 0}>
@@ -216,10 +226,30 @@
     margin: 0 auto;
   }
 
+  .preset-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+  }
+
+  .preset-selector label {
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .preset-selector select {
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 0.9rem;
+    background: var(--color-surface-200, #f3f4f6);
+  }
+
   .buttons {
     display: flex;
     width: 50%;
-    margin-top: 2rem;
+    margin-top: 1rem;
   }
 
   button {

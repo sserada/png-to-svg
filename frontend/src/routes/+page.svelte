@@ -1026,8 +1026,8 @@
   }
 
   .footer {
-    position: fixed;
-    bottom: 3px;
+    margin-top: 2rem;
+    padding-bottom: 0.5rem;
   }
 
   .footer p {

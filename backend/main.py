@@ -329,8 +329,22 @@ async def image_processing(request_id: str, data: Dict):
         _update_progress(request_id, 'decoding', 10)
 
         name = sanitize_filename(data['name'])
-        img_data = data['data'].split(',')[1]
-        decoded_img = base64.b64decode(img_data)
+
+        try:
+            img_data = data['data'].split(',')[1]
+        except IndexError:
+            raise HTTPException(
+                status_code=400,
+                detail={'error': 'Malformed data URL: missing base64 content.', 'code': 'MALFORMED_DATA_URL'}
+            )
+
+        try:
+            decoded_img = base64.b64decode(img_data)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail={'error': 'Invalid base64 data.', 'code': 'INVALID_BASE64'}
+            )
 
         validate_file(name, len(decoded_img))
 

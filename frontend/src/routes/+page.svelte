@@ -48,8 +48,10 @@
     revokePreviewUrls();
   });
 
+  let fileMap: {[key: string]: File} = $state({});
   let isProcessing: boolean = $state(false);
   let completedCount = $derived(Object.values(fileStatuses).filter(s => s.status === 'completed').length);
+  let hasStatuses = $derived(Object.keys(fileStatuses).length > 0);
   let hasCompleted = $derived(completedCount > 0);
   let downloadError: string | null = $state(null);
   let isDownloading: boolean = $state(false);
@@ -109,6 +111,7 @@
       const file = files[i];
       const key = fileKey(i, file.name);
 
+      fileMap[key] = file;
       const validationError = validateFile(file);
       if (validationError) {
         fileStatuses[key] = {
@@ -120,11 +123,26 @@
       }
 
       fileStatuses[key] = { status: 'pending', displayName: file.name };
+      fileMap[key] = file;
       validEntries.push({ key, file });
     }
 
     await Promise.all(validEntries.map(({ key, file }) => processFile(key, file)));
     isProcessing = false;
+  }
+
+  async function retryFile(key: string) {
+    const file = fileMap[key];
+    if (!file) return;
+    await processFile(key, file);
+  }
+
+  function clearAll() {
+    revokePreviewUrls();
+    files = undefined;
+    fileStatuses = {};
+    fileMap = {};
+    downloadError = null;
   }
 
   async function download() {
@@ -244,6 +262,10 @@
     {/if}
   </div>
 
+  {#if hasStatuses && !isProcessing}
+    <button type="button" class="btn-clear" onclick={clearAll}>Clear All</button>
+  {/if}
+
   {#if downloadError}
     <div class="download-error">
       <span>{downloadError}</span>
@@ -301,6 +323,7 @@
                   <div class="error-status">
                     <span class="badge badge-error">&#x2717; Failed</span>
                     <p class="error-message">{fileStatuses[key].error}</p>
+                    <button type="button" class="btn-retry" onclick={() => retryFile(key)}>Retry</button>
                   </div>
                 {/if}
               {:else}
@@ -607,6 +630,36 @@
 
   .dismiss-btn:hover {
     color: #991b1b;
+  }
+
+  .btn-retry {
+    padding: 0.2rem 0.6rem;
+    font-size: 0.75rem;
+    border: 1px solid #3b82f6;
+    border-radius: 4px;
+    background: white;
+    color: #3b82f6;
+    cursor: pointer;
+  }
+
+  .btn-retry:hover {
+    background: #eff6ff;
+  }
+
+  .btn-clear {
+    margin-top: 0.5rem;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.8rem;
+    border: 1px solid #9ca3af;
+    border-radius: 6px;
+    background: white;
+    color: #6b7280;
+    cursor: pointer;
+  }
+
+  .btn-clear:hover {
+    background: #f3f4f6;
+    color: #374151;
   }
 
   .file-download-link {

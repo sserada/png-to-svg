@@ -190,8 +190,9 @@ async def test_upload_invalid_format():
 
 
 @pytest.mark.anyio
+@patch("main.os.path.getsize", return_value=2048)
 @patch("main.image_to_svg")
-async def test_upload_path_traversal(mock_image_to_svg):
+async def test_upload_path_traversal(mock_image_to_svg, mock_getsize):
     # Mock vtracer to avoid actual conversion
     mock_image_to_svg.return_value = "static/550e8400-e29b-41d4-a716-446655440000/passwd.svg"
 
@@ -212,10 +213,11 @@ async def test_upload_path_traversal(mock_image_to_svg):
 
 
 @pytest.mark.anyio
+@patch("main.os.path.getsize", return_value=2048)
 @patch("main.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
-async def test_upload_success(mock_exists, mock_makedirs, mock_vtracer):
+async def test_upload_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
     mock_vtracer.convert_image_to_svg_py = MagicMock()
 
     png_bytes = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
@@ -234,13 +236,17 @@ async def test_upload_success(mock_exists, mock_makedirs, mock_vtracer):
     result = response.json()
     assert result["success"] is True
     assert result["filename"] == "test.svg"
+    assert result["original_size"] == len(png_bytes)
+    assert result["svg_size"] == 2048
+    assert "conversion_time_ms" in result
 
 
 @pytest.mark.anyio
+@patch("main.os.path.getsize", return_value=2048)
 @patch("main.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
-async def test_upload_jpg_success(mock_exists, mock_makedirs, mock_vtracer):
+async def test_upload_jpg_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
     mock_vtracer.convert_image_to_svg_py = MagicMock()
 
     # JFIF header for JPG
@@ -263,10 +269,11 @@ async def test_upload_jpg_success(mock_exists, mock_makedirs, mock_vtracer):
 
 
 @pytest.mark.anyio
+@patch("main.os.path.getsize", return_value=2048)
 @patch("main.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
-async def test_upload_jpeg_success(mock_exists, mock_makedirs, mock_vtracer):
+async def test_upload_jpeg_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
     mock_vtracer.convert_image_to_svg_py = MagicMock()
 
     jpg_bytes = b'\xff\xd8\xff\xe0' + b'\x00' * 50
@@ -288,10 +295,11 @@ async def test_upload_jpeg_success(mock_exists, mock_makedirs, mock_vtracer):
 
 
 @pytest.mark.anyio
+@patch("main.os.path.getsize", return_value=2048)
 @patch("main.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
-async def test_upload_jpg_uppercase_success(mock_exists, mock_makedirs, mock_vtracer):
+async def test_upload_jpg_uppercase_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
     mock_vtracer.convert_image_to_svg_py = MagicMock()
 
     jpg_bytes = b'\xff\xd8\xff\xe0' + b'\x00' * 50
@@ -313,8 +321,9 @@ async def test_upload_jpg_uppercase_success(mock_exists, mock_makedirs, mock_vtr
 
 
 @pytest.mark.anyio
+@patch("main.os.path.getsize", return_value=2048)
 @patch("main.image_to_svg")
-async def test_upload_mixed_formats_sequentially(mock_image_to_svg):
+async def test_upload_mixed_formats_sequentially(mock_image_to_svg, mock_getsize):
     """Test uploading PNG, JPG, and JPEG files in sequence."""
     files = [
         ("test.png", "image/png", b'\x89PNG\r\n\x1a\n' + b'\x00' * 50),
@@ -371,10 +380,11 @@ async def test_upload_jpg_conversion_failure(mock_exists, mock_makedirs, mock_vt
 
 
 @pytest.mark.anyio
+@patch("main.os.path.getsize", return_value=2048)
 @patch("main.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
-async def test_upload_webp_success(mock_exists, mock_makedirs, mock_vtracer):
+async def test_upload_webp_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
     mock_vtracer.convert_image_to_svg_py = MagicMock()
 
     webp_bytes = b'RIFF' + b'\x00' * 4 + b'WEBP' + b'\x00' * 40
@@ -396,10 +406,11 @@ async def test_upload_webp_success(mock_exists, mock_makedirs, mock_vtracer):
 
 
 @pytest.mark.anyio
+@patch("main.os.path.getsize", return_value=2048)
 @patch("main.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
-async def test_upload_bmp_success(mock_exists, mock_makedirs, mock_vtracer):
+async def test_upload_bmp_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
     mock_vtracer.convert_image_to_svg_py = MagicMock()
 
     bmp_bytes = b'BM' + b'\x00' * 50
@@ -421,10 +432,11 @@ async def test_upload_bmp_success(mock_exists, mock_makedirs, mock_vtracer):
 
 
 @pytest.mark.anyio
+@patch("main.os.path.getsize", return_value=2048)
 @patch("main.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
-async def test_upload_gif_success(mock_exists, mock_makedirs, mock_vtracer):
+async def test_upload_gif_success(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
     mock_vtracer.convert_image_to_svg_py = MagicMock()
 
     gif_bytes = b'GIF89a' + b'\x00' * 50
@@ -479,10 +491,11 @@ async def test_get_presets():
 
 
 @pytest.mark.anyio
+@patch("main.os.path.getsize", return_value=2048)
 @patch("main.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
-async def test_upload_with_preset(mock_exists, mock_makedirs, mock_vtracer):
+async def test_upload_with_preset(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
     mock_vtracer.convert_image_to_svg_py = MagicMock()
 
     png_bytes = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
@@ -506,10 +519,11 @@ async def test_upload_with_preset(mock_exists, mock_makedirs, mock_vtracer):
 
 
 @pytest.mark.anyio
+@patch("main.os.path.getsize", return_value=2048)
 @patch("main.vtracer")
 @patch("main.os.makedirs")
 @patch("main.os.path.exists", return_value=False)
-async def test_upload_with_invalid_preset_falls_back(mock_exists, mock_makedirs, mock_vtracer):
+async def test_upload_with_invalid_preset_falls_back(mock_exists, mock_makedirs, mock_vtracer, mock_getsize):
     mock_vtracer.convert_image_to_svg_py = MagicMock()
 
     png_bytes = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50

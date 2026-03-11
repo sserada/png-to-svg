@@ -371,12 +371,18 @@ async def image_processing(request: Request, request_id: str, data: Dict):
 
         _update_progress(request_id, 'converting', 50)
 
+        original_size = len(decoded_img)
+
         # Convert to SVG (run in thread pool to avoid blocking event loop)
         preset = data.get('preset', 'balanced')
         if preset not in PRESETS:
             preset = 'balanced'
-        output_path = await asyncio.to_thread(image_to_svg, file_path, preset)
 
+        convert_start = time.monotonic()
+        output_path = await asyncio.to_thread(image_to_svg, file_path, preset)
+        conversion_time_ms = round((time.monotonic() - convert_start) * 1000)
+
+        svg_size = os.path.getsize(output_path)
         svg_filename = Path(output_path).name
         response_url = f'http://{host}:{port}/static/{request_id}/{svg_filename}'
 
@@ -386,7 +392,10 @@ async def image_processing(request: Request, request_id: str, data: Dict):
         return JSONResponse({
             'success': True,
             'url': response_url,
-            'filename': svg_filename
+            'filename': svg_filename,
+            'original_size': original_size,
+            'svg_size': svg_size,
+            'conversion_time_ms': conversion_time_ms,
         })
 
     except HTTPException:

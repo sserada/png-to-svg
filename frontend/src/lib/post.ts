@@ -2,6 +2,9 @@ interface ApiResponse {
   success: boolean;
   url: string;
   filename: string;
+  original_size?: number;
+  svg_size?: number;
+  conversion_time_ms?: number;
 }
 
 export class ApiError extends Error {

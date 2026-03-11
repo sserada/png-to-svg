@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
@@ -35,6 +35,9 @@ ERROR_CODES = {
     'CONVERSION_FAILED': 'Failed to convert image to SVG. The image may be corrupted or too complex.',
     'MISSING_DATA': 'Invalid request data. Please provide both file name and data.',
 }
+
+# Progress tracking for SSE
+progress_store: Dict[str, dict] = {}
 
 # Load environment variables
 load_dotenv()
@@ -253,6 +256,39 @@ async def get_presets() -> JSONResponse:
     })
 
 
+def _update_progress(request_id: str, stage: str, progress: int) -> None:
+    """Update progress for a request."""
+    progress_store[request_id] = {'stage': stage, 'progress': progress}
+
+
+@app.get('/backend/progress/{request_id}')
+async def stream_progress(request_id: str):
+    """SSE endpoint to stream conversion progress for a request."""
+    if not _validate_uuid(request_id):
+        raise HTTPException(
+            status_code=400,
+            detail={'error': 'Invalid request_id', 'code': 'INVALID_UUID'}
+        )
+
+    async def event_generator():
+        import json
+        last_stage = None
+        while True:
+            entry = progress_store.get(request_id)
+            if entry and entry['stage'] != last_stage:
+                last_stage = entry['stage']
+                yield f"data: {json.dumps(entry)}\n\n"
+                if entry['stage'] in ('completed', 'failed'):
+                    break
+            await asyncio.sleep(0.2)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
+    )
+
+
 @app.post('/backend/upload/{request_id}')
 async def image_processing(request_id: str, data: Dict):
     """
@@ -272,11 +308,15 @@ async def image_processing(request_id: str, data: Dict):
                 detail={'error': ERROR_CODES['MISSING_DATA'], 'code': 'MISSING_DATA'}
             )
 
+        _update_progress(request_id, 'decoding', 10)
+
         name = sanitize_filename(data['name'])
         img_data = data['data'].split(',')[1]
         decoded_img = base64.b64decode(img_data)
 
         validate_file(name, len(decoded_img))
+
+        _update_progress(request_id, 'saving', 25)
 
         request_dir = f'static/{request_id}'
         if not os.path.exists(request_dir):
@@ -287,6 +327,8 @@ async def image_processing(request_id: str, data: Dict):
             f.write(decoded_img)
         logger.info(f"Saved uploaded file: {file_path}")
 
+        _update_progress(request_id, 'converting', 50)
+
         # Convert to SVG (run in thread pool to avoid blocking event loop)
         preset = data.get('preset', 'balanced')
         if preset not in PRESETS:
@@ -296,6 +338,8 @@ async def image_processing(request_id: str, data: Dict):
         svg_filename = Path(output_path).name
         response_url = f'http://{host}:{port}/static/{request_id}/{svg_filename}'
 
+        _update_progress(request_id, 'completed', 100)
+
         logger.info(f"Request {request_id} completed successfully")
         return JSONResponse({
             'success': True,
@@ -304,8 +348,10 @@ async def image_processing(request_id: str, data: Dict):
         })
 
     except HTTPException:
+        _update_progress(request_id, 'failed', 0)
         raise
     except Exception as e:
+        _update_progress(request_id, 'failed', 0)
         logger.error(f"Unexpected error in request {request_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,

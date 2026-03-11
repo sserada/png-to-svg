@@ -1,7 +1,7 @@
 <script lang='ts'>
   import JSZip from 'jszip';
   import pngIcon from '$lib/assets/png-icon.png';
-  import { Post } from '$lib/post';
+  import { Post, type ProgressEvent } from '$lib/post';
   import { saveAs } from 'file-saver';
 
   type ConversionStatus = 'pending' | 'processing' | 'completed' | 'failed';
@@ -10,6 +10,8 @@
     url?: string;
     status: ConversionStatus;
     error?: string;
+    stage?: string;
+    progress?: number;
   }
 
   let files: FileList | undefined = $state(undefined);
@@ -39,10 +41,18 @@
   }
 
   async function processFile(file: File) {
-    fileStatuses[file.name] = { status: 'processing' };
+    fileStatuses[file.name] = { status: 'processing', stage: 'uploading', progress: 0 };
 
     try {
-      const data = await Post(file, selectedPreset);
+      const data = await Post(file, selectedPreset, (evt: ProgressEvent) => {
+        if (fileStatuses[file.name]?.status === 'processing') {
+          fileStatuses[file.name] = {
+            ...fileStatuses[file.name],
+            stage: evt.stage,
+            progress: evt.progress
+          };
+        }
+      });
 
       if (data.success) {
         fileStatuses[file.name] = {
@@ -201,7 +211,24 @@
                 {:else if fileStatuses[file.name].status === 'processing'}
                   <div class="processing">
                     <div class="spinner"></div>
-                    <span>Processing...</span>
+                    <span class="stage-label">
+                      {#if fileStatuses[file.name].stage === 'uploading'}
+                        Uploading...
+                      {:else if fileStatuses[file.name].stage === 'decoding'}
+                        Decoding...
+                      {:else if fileStatuses[file.name].stage === 'saving'}
+                        Saving...
+                      {:else if fileStatuses[file.name].stage === 'converting'}
+                        Converting...
+                      {:else}
+                        Processing...
+                      {/if}
+                    </span>
+                    {#if fileStatuses[file.name].progress != null}
+                      <div class="progress-bar">
+                        <div class="progress-fill" style="width: {fileStatuses[file.name].progress}%"></div>
+                      </div>
+                    {/if}
                   </div>
                 {:else if fileStatuses[file.name].status === 'completed'}
                   <span class="badge badge-success">&#x2713; Completed</span>
@@ -407,6 +434,26 @@
 
   @keyframes spin {
     to { transform: rotate(360deg); }
+  }
+
+  .stage-label {
+    font-size: 0.85rem;
+    color: #6b7280;
+  }
+
+  .progress-bar {
+    width: 80%;
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: #3b82f6;
+    border-radius: 3px;
+    transition: width 0.3s ease;
   }
 
   .error-status {

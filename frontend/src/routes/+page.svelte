@@ -14,10 +14,28 @@
     progress?: number;
   }
 
+  import { onDestroy } from 'svelte';
+
   let files: FileList | undefined = $state(undefined);
   let fileStatuses: {[key: string]: FileStatus} = $state({});
   let selectedPreset: string = $state('balanced');
   let dragOver: boolean = $state(false);
+  let previewUrls: string[] = $state([]);
+
+  function revokePreviewUrls() {
+    previewUrls.forEach(url => URL.revokeObjectURL(url));
+    previewUrls = [];
+  }
+
+  function createPreviewUrl(file: File): string {
+    const url = URL.createObjectURL(file);
+    previewUrls.push(url);
+    return url;
+  }
+
+  onDestroy(() => {
+    revokePreviewUrls();
+  });
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -113,6 +131,7 @@
   function handleFileInput(e: Event) {
     const input = e.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
+      revokePreviewUrls();
       files = input.files;
     }
   }
@@ -121,6 +140,7 @@
     e.preventDefault();
     dragOver = false;
     if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      revokePreviewUrls();
       files = e.dataTransfer.files;
     }
   }
@@ -202,7 +222,7 @@
           <tr>
             <td class="filename">{file.name}</td>
             <td>
-              <img src={URL.createObjectURL(file)} alt={file.name} class="preview-img" />
+              <img src={createPreviewUrl(file)} alt={file.name} class="preview-img" />
             </td>
             <td class="status-cell">
               {#if fileStatuses[file.name]}

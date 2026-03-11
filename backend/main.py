@@ -26,11 +26,11 @@ logger = logging.getLogger(__name__)
 
 # Configuration constants
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
-ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'}
+ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'}
 CLEANUP_INTERVAL_SECONDS = 600   # Run cleanup every 10 minutes
 FILE_MAX_AGE_SECONDS = 3600      # Delete files older than 1 hour
 ERROR_CODES = {
-    'INVALID_FORMAT': 'File format is not supported. Only PNG and JPG/JPEG files are allowed.',
+    'INVALID_FORMAT': 'File format is not supported. Supported formats: PNG, JPG/JPEG, WebP, BMP, GIF.',
     'FILE_TOO_LARGE': f'File size exceeds the maximum limit of {MAX_FILE_SIZE / (1024 * 1024):.0f}MB.',
     'CONVERSION_FAILED': 'Failed to convert image to SVG. The image may be corrupted or too complex.',
     'MISSING_DATA': 'Invalid request data. Please provide both file name and data.',

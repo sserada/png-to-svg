@@ -1,3 +1,4 @@
+import json
 import os
 import glob
 import base64
@@ -29,6 +30,8 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
 ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'}
 CLEANUP_INTERVAL_SECONDS = 600   # Run cleanup every 10 minutes
 FILE_MAX_AGE_SECONDS = 3600      # Delete files older than 1 hour
+SSE_TIMEOUT_SECONDS = 60              # Max time for SSE progress stream
+PROGRESS_CLEANUP_DELAY_SECONDS = 120   # Delay before cleaning up progress entries
 ERROR_CODES = {
     'INVALID_FORMAT': 'File format is not supported. Supported formats: PNG, JPG/JPEG, WebP, BMP, GIF.',
     'FILE_TOO_LARGE': f'File size exceeds the maximum limit of {MAX_FILE_SIZE / (1024 * 1024):.0f}MB.',
@@ -42,10 +45,19 @@ progress_store: Dict[str, dict] = {}
 # Load environment variables
 load_dotenv()
 
-# Validate environment variables
+# Validate required environment variables
 host = os.getenv("HOST")
 port = os.getenv("PORT")
 frontend_port = os.getenv("FRONTEND_PORT")
+
+_REQUIRED_ENV_VARS = {"HOST": host, "PORT": port, "FRONTEND_PORT": frontend_port}
+_missing = [k for k, v in _REQUIRED_ENV_VARS.items() if not v]
+if _missing:
+    logger.warning(f"Missing environment variables: {', '.join(_missing)}. "
+                   "Using defaults (HOST=localhost, PORT=8000, FRONTEND_PORT=3000).")
+    host = host or "localhost"
+    port = port or "8000"
+    frontend_port = frontend_port or "3000"
 
 
 async def cleanup_old_files() -> None:
@@ -237,7 +249,7 @@ def image_to_svg(path: str, preset: str = 'balanced') -> str:
             os.remove(output_path)
         raise HTTPException(
             status_code=500,
-            detail={'error': ERROR_CODES['CONVERSION_FAILED'], 'code': 'CONVERSION_FAILED', 'details': str(e)}
+            detail={'error': ERROR_CODES['CONVERSION_FAILED'], 'code': 'CONVERSION_FAILED'}
         )
 
 
@@ -259,6 +271,11 @@ async def get_presets() -> JSONResponse:
 def _update_progress(request_id: str, stage: str, progress: int) -> None:
     """Update progress for a request."""
     progress_store[request_id] = {'stage': stage, 'progress': progress}
+    if stage in ('completed', 'failed'):
+        asyncio.get_event_loop().call_later(
+            PROGRESS_CLEANUP_DELAY_SECONDS,
+            progress_store.pop, request_id, None
+        )
 
 
 @app.get('/backend/progress/{request_id}')
@@ -271,16 +288,17 @@ async def stream_progress(request_id: str):
         )
 
     async def event_generator():
-        import json
         last_stage = None
-        while True:
+        start_time = time.monotonic()
+        while time.monotonic() - start_time < SSE_TIMEOUT_SECONDS:
             entry = progress_store.get(request_id)
             if entry and entry['stage'] != last_stage:
                 last_stage = entry['stage']
                 yield f"data: {json.dumps(entry)}\n\n"
                 if entry['stage'] in ('completed', 'failed'):
-                    break
+                    return
             await asyncio.sleep(0.2)
+        yield f"data: {json.dumps({'stage': 'timeout', 'progress': 0})}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -355,7 +373,7 @@ async def image_processing(request_id: str, data: Dict):
         logger.error(f"Unexpected error in request {request_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={'error': 'An unexpected error occurred', 'code': 'INTERNAL_ERROR', 'details': str(e)}
+            detail={'error': 'An unexpected error occurred', 'code': 'INTERNAL_ERROR'}
         )
 
 

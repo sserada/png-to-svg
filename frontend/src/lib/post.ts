@@ -66,11 +66,11 @@ export const Post = async (
   preset: string = 'balanced',
   onProgress?: (event: ProgressEvent) => void
 ): Promise<ApiResponse> => {
-  try {
-    const { url, id } = baseURL();
+  const { url, id } = baseURL();
+  let eventSource: EventSource | null = null;
 
+  try {
     // Start SSE progress listener if callback provided
-    let eventSource: EventSource | null = null;
     if (onProgress) {
       const progressUrl = `${getBackendBase()}/backend/progress/${id}`;
       eventSource = new EventSource(progressUrl);
@@ -89,15 +89,14 @@ export const Post = async (
     }
 
     const response = await doPost(url, data, preset);
-
-    eventSource?.close();
     return response;
   } catch (error: unknown) {
     const apiError = error as ApiError;
-    // Re-throw with more context
     throw {
       message: apiError.message || 'Network error',
       detail: apiError.detail || { error: 'Failed to connect to server' }
     };
+  } finally {
+    eventSource?.close();
   }
 }

@@ -201,7 +201,6 @@
       }
 
       fileStatuses[key] = { status: 'pending', displayName: file.name };
-      fileMap[key] = file;
       validEntries.push({ key, file });
     }
 

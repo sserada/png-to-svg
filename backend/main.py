@@ -35,10 +35,12 @@ CLEANUP_INTERVAL_SECONDS = 600   # Run cleanup every 10 minutes
 FILE_MAX_AGE_SECONDS = 3600      # Delete files older than 1 hour
 SSE_TIMEOUT_SECONDS = 60              # Max time for SSE progress stream
 PROGRESS_CLEANUP_DELAY_SECONDS = 120   # Delay before cleaning up progress entries
+CONVERSION_TIMEOUT_SECONDS = 120       # Max time for a single conversion
 ERROR_CODES = {
     'INVALID_FORMAT': 'File format is not supported. Supported formats: PNG, JPG/JPEG, WebP, BMP, GIF.',
     'FILE_TOO_LARGE': f'File size exceeds the maximum limit of {MAX_FILE_SIZE / (1024 * 1024):.0f}MB.',
     'CONVERSION_FAILED': 'Failed to convert image to SVG. The image may be corrupted or too complex.',
+    'CONVERSION_TIMEOUT': 'Conversion timed out. The image may be too complex for this preset.',
     'MISSING_DATA': 'Invalid request data. Please provide both file name and data.',
 }
 
@@ -349,7 +351,7 @@ async def image_processing(request: Request, request_id: str, data: Dict):
             )
 
         try:
-            decoded_img = base64.b64decode(img_data)
+            decoded_img = base64.b64decode(img_data, validate=True)
         except Exception:
             raise HTTPException(
                 status_code=400,
@@ -379,7 +381,17 @@ async def image_processing(request: Request, request_id: str, data: Dict):
             preset = 'balanced'
 
         convert_start = time.monotonic()
-        output_path = await asyncio.to_thread(image_to_svg, file_path, preset)
+        try:
+            output_path = await asyncio.wait_for(
+                asyncio.to_thread(image_to_svg, file_path, preset),
+                timeout=CONVERSION_TIMEOUT_SECONDS
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Conversion timed out for request {request_id}")
+            raise HTTPException(
+                status_code=504,
+                detail={'error': ERROR_CODES['CONVERSION_TIMEOUT'], 'code': 'CONVERSION_TIMEOUT'}
+            )
         conversion_time_ms = round((time.monotonic() - convert_start) * 1000)
 
         svg_size = os.path.getsize(output_path)

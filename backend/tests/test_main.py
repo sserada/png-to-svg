@@ -600,3 +600,32 @@ class TestUpdateProgress:
         _update_progress(request_id, 'saving', 25)
         assert progress_store[request_id] == {'stage': 'saving', 'progress': 25}
         progress_store.pop(request_id, None)
+
+
+# --- Data URL parsing error tests ---
+
+
+@pytest.mark.anyio
+async def test_upload_malformed_data_url_no_comma():
+    """Data URL without comma should return 400 with MALFORMED_DATA_URL code."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+            json={"name": "test.png", "data": "data:image/png;base64"},
+        )
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "MALFORMED_DATA_URL"
+
+
+@pytest.mark.anyio
+async def test_upload_invalid_base64_data():
+    """Invalid base64 content should return 400 with INVALID_BASE64 code."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+            json={"name": "test.png", "data": "data:image/png;base64,!!!not-valid-base64!!!"},
+        )
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "INVALID_BASE64"

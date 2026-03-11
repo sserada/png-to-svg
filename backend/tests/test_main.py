@@ -1,3 +1,4 @@
+import asyncio
 import os
 import base64
 import pytest
@@ -15,6 +16,7 @@ from main import (
     _update_progress,
     limiter,
     UPLOAD_RATE_LIMIT,
+    CONVERSION_TIMEOUT_SECONDS,
 )
 
 
@@ -717,3 +719,50 @@ async def test_health_not_rate_limited():
         for _ in range(15):
             response = await client.get("/backend/health")
             assert response.status_code == 200
+
+
+# --- Conversion timeout and strict base64 tests ---
+
+
+def test_conversion_timeout_constant():
+    """Verify the conversion timeout is configured."""
+    assert CONVERSION_TIMEOUT_SECONDS == 120
+
+
+@pytest.mark.anyio
+async def test_upload_conversion_timeout():
+    """Conversion timeout should return 504."""
+    def slow_convert(*args, **kwargs):
+        import time
+        time.sleep(5)  # Will be cancelled by timeout
+
+    png_bytes = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
+    b64 = base64.b64encode(png_bytes).decode()
+    data_url = f"data:image/png;base64,{b64}"
+
+    with patch("builtins.open", MagicMock()), \
+         patch("main.os.makedirs"), \
+         patch("main.os.path.exists", return_value=False), \
+         patch("main.image_to_svg", side_effect=slow_convert), \
+         patch("main.CONVERSION_TIMEOUT_SECONDS", 0.1):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+                json={"name": "test.png", "data": data_url},
+            )
+    assert response.status_code == 504
+    assert response.json()["detail"]["code"] == "CONVERSION_TIMEOUT"
+
+
+@pytest.mark.anyio
+async def test_upload_strict_base64_rejects_whitespace():
+    """Strict base64 validation should reject data with invalid characters."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/backend/upload/550e8400-e29b-41d4-a716-446655440000",
+            json={"name": "test.png", "data": "data:image/png;base64,abc def"},
+        )
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "INVALID_BASE64"

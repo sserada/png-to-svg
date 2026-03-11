@@ -48,6 +48,7 @@
     revokePreviewUrls();
   });
 
+  let isProcessing: boolean = $state(false);
   let completedCount = $derived(Object.values(fileStatuses).filter(s => s.status === 'completed').length);
   let hasCompleted = $derived(completedCount > 0);
   let downloadError: string | null = $state(null);
@@ -101,6 +102,7 @@
 
   async function send() {
     if (!files) return;
+    isProcessing = true;
     const validEntries: { key: string; file: File }[] = [];
 
     for (let i = 0; i < files.length; i++) {
@@ -122,6 +124,7 @@
     }
 
     await Promise.all(validEntries.map(({ key, file }) => processFile(key, file)));
+    isProcessing = false;
   }
 
   async function download() {
@@ -153,6 +156,8 @@
     const input = e.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       revokePreviewUrls();
+      fileStatuses = {};
+      downloadError = null;
       files = input.files;
     }
   }
@@ -162,6 +167,8 @@
     dragOver = false;
     if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
       revokePreviewUrls();
+      fileStatuses = {};
+      downloadError = null;
       files = e.dataTransfer.files;
     }
   }
@@ -188,10 +195,11 @@
     class:drag-over={dragOver}
     role="button"
     tabindex="0"
+    aria-label="Upload image files for SVG conversion"
     ondrop={handleDrop}
     ondragover={handleDragOver}
     ondragleave={handleDragLeave}
-    onkeydown={(e) => { if (e.key === 'Enter') document.getElementById('file-input')?.click(); }}
+    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById('file-input')?.click(); } }}
     onclick={() => document.getElementById('file-input')?.click()}
   >
     <img src={pngIcon} class="icon" alt="Upload icon" />
@@ -217,8 +225,12 @@
   </div>
 
   <div class="buttons">
-    <button type="button" class="btn send" onclick={send} disabled={!files || files.length === 0}>
-      Send
+    <button type="button" class="btn send" onclick={send} disabled={!files || files.length === 0 || isProcessing}>
+      {#if isProcessing}
+        Processing...
+      {:else}
+        Send
+      {/if}
     </button>
     {#if hasCompleted}
       <div class="divider"></div>
@@ -233,7 +245,10 @@
   </div>
 
   {#if downloadError}
-    <p class="download-error">{downloadError}</p>
+    <div class="download-error">
+      <span>{downloadError}</span>
+      <button type="button" class="dismiss-btn" onclick={() => downloadError = null} aria-label="Dismiss error">&times;</button>
+    </div>
   {/if}
 
   {#if files && files.length > 0}
@@ -568,12 +583,29 @@
   }
 
   .download-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     margin-top: 0.5rem;
     font-size: 0.85rem;
     color: #dc2626;
     padding: 0.5rem 1rem;
     background-color: #fee2e2;
     border-radius: 6px;
+  }
+
+  .dismiss-btn {
+    background: none;
+    border: none;
+    color: #dc2626;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0 0.25rem;
+    line-height: 1;
+  }
+
+  .dismiss-btn:hover {
+    color: #991b1b;
   }
 
   .footer {

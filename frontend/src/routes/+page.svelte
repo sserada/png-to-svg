@@ -266,7 +266,7 @@
   {/if}
 
   <div class="footer">
-    <p>&copy; 2023 <a href="https://hirawatasou.com" target="_blank">So Hirawata</a></p>
+    <p>&copy; 2024 <a href="https://hirawatasou.com" target="_blank">So Hirawata</a></p>
   </div>
 
 </section>

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Post } from '$lib/post';
+import { Post, ApiError } from '$lib/post';
 
 // Mock crypto.randomUUID
 vi.stubGlobal('crypto', {
@@ -36,7 +36,7 @@ describe('Post', () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
-  it('should throw on HTTP error response', async () => {
+  it('should throw ApiError on HTTP error response', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 400,
@@ -46,19 +46,23 @@ describe('Post', () => {
 
     const file = new File(['test'], 'test.png', { type: 'image/png' });
 
+    await expect(Post(file, 'balanced')).rejects.toBeInstanceOf(ApiError);
     await expect(Post(file, 'balanced')).rejects.toMatchObject({
       message: 'Bad Request',
+      status: 400,
       detail: { error: 'Invalid file' }
     });
   });
 
-  it('should throw network error when fetch fails', async () => {
+  it('should throw ApiError with network error when fetch fails', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
 
     const file = new File(['test'], 'test.png', { type: 'image/png' });
 
+    await expect(Post(file, 'balanced')).rejects.toBeInstanceOf(ApiError);
     await expect(Post(file, 'balanced')).rejects.toMatchObject({
-      message: 'Network error'
+      message: 'Network error',
+      status: 0
     });
   });
 

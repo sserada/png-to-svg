@@ -4,10 +4,16 @@ interface ApiResponse {
   filename: string;
 }
 
-interface ApiError {
+export class ApiError extends Error {
   status: number;
-  message: string;
   detail: { error: string; code?: string } | Record<string, unknown>;
+
+  constructor(message: string, status: number, detail: Record<string, unknown>) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+  }
 }
 
 export interface ProgressEvent {
@@ -49,13 +55,12 @@ const doPost = async (url: string, data: File, preset: string = 'balanced'): Pro
 
   const result = await response.json();
 
-  // Check if the response indicates an error
   if (!response.ok) {
-    throw {
-      status: response.status,
-      message: response.statusText,
-      detail: result.detail || result
-    } as ApiError;
+    throw new ApiError(
+      response.statusText,
+      response.status,
+      result.detail || result
+    );
   }
 
   return result as ApiResponse;
@@ -91,11 +96,11 @@ export const Post = async (
     const response = await doPost(url, data, preset);
     return response;
   } catch (error: unknown) {
-    const apiError = error as ApiError;
-    throw {
-      message: apiError.message || 'Network error',
-      detail: apiError.detail || { error: 'Failed to connect to server' }
-    };
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    const message = error instanceof Error ? error.message : 'Network error';
+    throw new ApiError(message, 0, { error: 'Failed to connect to server' });
   } finally {
     eventSource?.close();
   }

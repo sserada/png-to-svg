@@ -1,7 +1,8 @@
 <script lang='ts'>
   import JSZip from 'jszip';
   import pngIcon from '$lib/assets/png-icon.png';
-  import { Post, type ProgressEvent } from '$lib/post';
+  import { Post, ApiError, type ProgressEvent } from '$lib/post';
+  import { validateFile } from '$lib/validate';
   import { saveAs } from 'file-saver';
 
   type ConversionStatus = 'pending' | 'processing' | 'completed' | 'failed';
@@ -37,26 +38,8 @@
     revokePreviewUrls();
   });
 
-  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
   let completedCount = $derived(Object.values(fileStatuses).filter(s => s.status === 'completed').length);
   let hasCompleted = $derived(completedCount > 0);
-
-  function validateFile(file: File): string | null {
-    const validExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'];
-    const lowerName = file.name.toLowerCase();
-    const hasValidExtension = validExtensions.some(ext => lowerName.endsWith(ext));
-
-    if (!hasValidExtension) {
-      return 'Supported formats: PNG, JPG/JPEG, WebP, BMP, GIF';
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      return `File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`;
-    }
-
-    return null;
-  }
 
   async function processFile(file: File) {
     fileStatuses[file.name] = { status: 'processing', stage: 'uploading', progress: 0 };
@@ -83,10 +66,13 @@
           error: 'Conversion failed'
         };
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof ApiError
+        ? (error.detail as { error?: string })?.error || error.message
+        : error instanceof Error ? error.message : 'An unexpected error occurred';
       fileStatuses[file.name] = {
         status: 'failed',
-        error: error.detail?.error || error.message || 'An unexpected error occurred'
+        error: message
       };
     }
   }

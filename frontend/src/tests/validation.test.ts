@@ -1,22 +1,5 @@
 import { describe, it, expect } from 'vitest';
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
-function validateFile(file: File): string | null {
-  const validExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'];
-  const lowerName = file.name.toLowerCase();
-  const hasValidExtension = validExtensions.some(ext => lowerName.endsWith(ext));
-
-  if (!hasValidExtension) {
-    return 'Supported formats: PNG, JPG/JPEG, WebP, BMP, GIF';
-  }
-
-  if (file.size > MAX_FILE_SIZE) {
-    return `File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`;
-  }
-
-  return null;
-}
+import { validateFile } from '$lib/validate';
 
 describe('validateFile', () => {
   it('should accept PNG files', () => {

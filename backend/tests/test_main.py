@@ -1,4 +1,3 @@
-import os
 import base64
 import pytest
 from unittest.mock import patch, MagicMock

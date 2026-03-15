@@ -3,7 +3,9 @@
   import pngIcon from '$lib/assets/png-icon.png';
   import { Post, ApiError, type ProgressEvent, type CustomParams } from '$lib/post';
   import { validateFile } from '$lib/validate';
-  import { saveAs } from 'file-saver';
+  import pkg from 'file-saver';
+
+  const { saveAs } = pkg;
 
   type ConversionStatus = 'pending' | 'processing' | 'completed' | 'failed';
 

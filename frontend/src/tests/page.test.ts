@@ -22,6 +22,7 @@ vi.mock('$lib/validate', () => ({
 }));
 
 vi.mock('file-saver', () => ({
+  default: { saveAs: vi.fn() },
   saveAs: vi.fn(),
 }));
 
